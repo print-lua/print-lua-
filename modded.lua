@@ -1,8 +1,16 @@
 --[[
     Milenium Library
     -> Made by @finobe
-    -> Rivals-safe rewrite: guarded FS/HTTP calls, safe UI parent, no per-frame tween spam,
-       fixed unload, fixed settings layout oscillation, safe font fallback.
+    -> Rivals-safe rewrite:
+       * No CoreGui writes (Byfron-friendly) — parented to PlayerGui
+       * No blocking font downloads at startup — uses built-in fonts (no freeze)
+       * Folder creation is async (never blocks the UI thread)
+       * ResetOnSpawn = false on every ScreenGui
+       * Throttled drag/resize (no tween spam) — direct Position/Size sets
+       * Fixed notification index bug (uses insert/remove, not #array with holes)
+       * Fixed settings popout (no tween on AutomaticSize frame)
+       * task.wait() -> task.wait(0)
+       * library:create skips nil properties
 ]]
 
 -- ═══════════════════════════════════════════════════════════════════
@@ -73,7 +81,7 @@ local IS_MOBILE = uis.TouchEnabled and not uis.KeyboardEnabled
 local PLATFORM  = IS_MOBILE and "MOBILE" or "PC"
 
 -- ═══════════════════════════════════════════════════════════════════
---  SAFE WRAPPERS (Byfron / Rivals)
+--  SAFE WRAPPERS
 -- ═══════════════════════════════════════════════════════════════════
 local function safe_pcall(fn, ...)
     local ok, a, b, c = pcall(fn, ...)
@@ -84,24 +92,12 @@ end
 local function safe_isfile(p)        return (safe_pcall(isfile, p) == true) end
 local function safe_delfile(p)       safe_pcall(delfile, p) end
 local function safe_writefile(p, d)  return safe_pcall(writefile, p, d) ~= nil end
-local function safe_makefolder(p)    safe_pcall(makefolder, p) end
 local function safe_listfiles(p)     return safe_pcall(listfiles, p) or {} end
 local function safe_httpget(url)     return safe_pcall(game.HttpGet, game, url) end
 local function safe_getcustom(p)     return safe_pcall(getcustomasset, p) end
 
+-- Always use PlayerGui — never touches CoreGui in Rivals (Byfron triggers freeze)
 local function get_ui_parent()
-    local hui = rawget(getgenv and getgenv() or {}, "gethui")
-    if type(gethui) == "function" then
-        local ok, result = pcall(gethui)
-        if ok and result then return result end
-    end
-    local ok = pcall(function() return coregui:GetChildren() end)
-    if ok then
-        local test = Instance.new("ScreenGui")
-        local ok2 = pcall(function() test.Parent = coregui end)
-        test:Destroy()
-        if ok2 then return coregui end
-    end
     return lp:WaitForChild("PlayerGui")
 end
 
@@ -164,61 +160,41 @@ local keys = {
     [Enum.UserInputType.MouseButton3] = "MB3",
     [Enum.KeyCode.Escape] = "ESC", [Enum.KeyCode.Space] = "SPC",
 }
-        
+
 library.__index = library
 
-for _, path in next, library.folders do 
-    safe_makefolder(library.directory .. path)
-end
+-- Folder creation: fire-and-forget so it can NEVER block the UI thread in Rivals
+task.spawn(function()
+    for _, path in next, library.folders do 
+        pcall(makefolder, library.directory .. path)
+    end
+end)
 
 -- ═══════════════════════════════════════════════════════════════════
---  FONTS (safe + fallback)
+--  FONTS — use built-in Roblox fonts, ZERO file/HTTP calls at startup.
+--  This is the single biggest source of the Rivals startup freeze.
 -- ═══════════════════════════════════════════════════════════════════
 local fonts
 do
-    local function try_font(family, weight, fallback)
-        if family then
-            local ok, obj = pcall(Font.new, family, weight or Enum.FontWeight.Regular)
-            if ok and obj then return obj end
-        end
-        local ok2, obj2 = pcall(Font.fromEnum, fallback)
-        if ok2 and obj2 then return obj2 end
-        return Enum.Font.SourceSans
+    local function make_font(enum)
+        local ok, f = pcall(Font.fromEnum, enum)
+        if ok and f then return f end
+        return nil
     end
-
-    local function register_font(name, weight, style, remote_url)
-        local id = name .. ".ttf"
-        if not safe_isfile(id) then
-            local data = safe_httpget(remote_url)
-            if data then safe_writefile(id, data) end
-        end
-        if not safe_isfile(id) then return nil end
-        if safe_isfile(name .. ".font") then safe_delfile(name .. ".font") end
-        local custom = safe_getcustom(id)
-        if not custom then return nil end
-        local Data = {
-            name = name,
-            faces = {{ name = "Normal", weight = weight, style = style, assetId = custom }},
-        }
-        if not safe_writefile(name .. ".font", http_service:JSONEncode(Data)) then return nil end
-        return safe_getcustom(name .. ".font")
-    end
-
-    local Medium   = register_font("Medium",   200, "Normal",
-        "https://github.com/i77lhm/storage/raw/refs/heads/main/fonts/Inter_28pt-Medium.ttf")
-    local SemiBold = register_font("SemiBold", 200, "Normal",
-        "https://github.com/i77lhm/storage/raw/refs/heads/main/fonts/Inter_28pt-SemiBold.ttf")
-
+    local regular = make_font(Enum.Font.SourceSans)
+    local bold    = make_font(Enum.Font.SourceSansBold)
     fonts = {
-        small = try_font(Medium,   Enum.FontWeight.Regular, Enum.Font.SourceSans),
-        font  = try_font(SemiBold, Enum.FontWeight.Regular, Enum.Font.SourceSansBold),
+        small = regular,
+        font  = bold or regular,
     }
 end
 
+-- Cache ScreenGui (uses PlayerGui, no CoreGui write)
 library.cache = Instance.new("ScreenGui")
 library.cache.Name = "\0"
 library.cache.Enabled = false
 library.cache.IgnoreGuiInset = true
+library.cache.ResetOnSpawn = false
 library.cache.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 library.cache.Parent = get_ui_parent()
 
@@ -290,6 +266,7 @@ function library:resizify(frame)
         end
     end)
 
+    -- Throttled resize: direct Size set, no tween churn
     local last_resize = 0
     library:connection(uis.InputChanged, function(input)
         if not resizing then return end
@@ -332,6 +309,7 @@ function library:draggify(frame, handle)
         end
     end)
 
+    -- Throttled drag: direct Position set, no tween churn
     local last_drag = 0
     library:connection(uis.InputChanged, function(input)
         if not dragging then return end
@@ -356,15 +334,14 @@ function library:draggify(frame, handle)
     end)
 end 
 
-function fag(tbl)
-    local Size = 0
-    for _ in tbl do Size = Size + 1 end
-    return Size
+function count_table(tbl)
+    local n = 0
+    for _ in tbl do n = n + 1 end
+    return n
 end
-    
+
 function library:next_flag()
-    local index = fag(library.flags) + 1;
-    return string.format("flagnumber%s", index)
+    return string.format("flagnumber%s", count_table(library.flags) + 1)
 end 
 
 function library:mouse_in_frame(uiobject)
@@ -398,7 +375,7 @@ function library:convert_enum(enum)
     return enum_table
 end
 
-local config_holder;
+local config_holder
 function library:update_config_list() 
     if not config_holder then return end
     local list = {}
@@ -481,7 +458,9 @@ end
 function library:create(instance, options)
     local ins = Instance.new(instance) 
     for prop, value in options do 
-        ins[prop] = value
+        if value ~= nil then
+            ins[prop] = value
+        end
     end
     return ins 
 end
@@ -522,6 +501,7 @@ function library:window(properties)
         Parent = get_ui_parent();
         Name = "\0";
         Enabled = true;
+        ResetOnSpawn = false;
         ZIndexBehavior = Enum.ZIndexBehavior.Global;
         IgnoreGuiInset = true;
     });
@@ -530,6 +510,7 @@ function library:window(properties)
         Parent = get_ui_parent();
         Name = "\0";
         Enabled = false;
+        ResetOnSpawn = false;
         ZIndexBehavior = Enum.ZIndexBehavior.Sibling;
         IgnoreGuiInset = true;
     }); 
@@ -537,9 +518,13 @@ function library:window(properties)
     library[ "toggle_ui_gui" ] = library:create( "ScreenGui" , {
         Parent = get_ui_parent();
         Name = "\0";
+        ResetOnSpawn = false;
         IgnoreGuiInset = true;
         ZIndexBehavior = Enum.ZIndexBehavior.Sibling;
     });
+
+    -- Yield to scheduler so a huge window build can't starve the engine
+    task.wait(0)
 
     local items = cfg.items; do
         items[ "main" ] = library:create( "Frame" , {
@@ -591,7 +576,6 @@ function library:window(properties)
         library:create( "UIListLayout" , { Parent = items[ "button_holder" ]; Padding = dim(0, 5); SortOrder = Enum.SortOrder.LayoutOrder });
         library:create( "UIPadding" , { PaddingTop = dim(0, 16); PaddingBottom = dim(0, 36); Parent = items[ "button_holder" ]; PaddingRight = dim(0, 11); PaddingLeft = dim(0, 10) });
 
-        local accent = themes.preset.accent
         items[ "title" ] = library:create( "TextLabel" , {
             FontFace = fonts.font;
             BorderColor3 = rgb(0, 0, 0);
@@ -750,6 +734,8 @@ function library:window(properties)
             library:tween(items[ "toggle_ui_btn" ], { BackgroundColor3 = rgb(30, 30, 36) }, Enum.EasingStyle.Quad, 0.15)
         end)
     end 
+
+    task.wait(0)
 
     do
         if IS_MOBILE then
@@ -2890,7 +2876,7 @@ function library:keybind(options)
             cfg.set_visible(cfg.open)
             return
         end
-        task.wait()
+        task.wait(0)
         items[ "key" ].Text = "..."	
         cfg.binding = library:connection(uis.InputBegan, function(keycode, game_event)  
             cfg.set(keycode.KeyCode ~= Enum.KeyCode.Unknown and keycode.KeyCode or keycode.UserInputType)
@@ -3054,6 +3040,7 @@ function library:settings(options)
     end 
 
     function cfg.set_visible(bool)                 
+        -- NO tween on Size for a frame that has AutomaticSize on a child — just toggle visibility
         items[ "outline" ].Visible = bool
         items[ "outline" ].Position = dim_offset(
             items[ "tick" ].AbsolutePosition.X,
@@ -3182,11 +3169,13 @@ function library:init_config(window)
     section:keybind({name = "Menu Bind", callback = function(bool) window.toggle_menu(bool) end, default = true})
 end
 
+-- ═══════════════════════════════════════════════════════════════════
+--  NOTIFICATIONS (fixed indexing — uses insert/remove, never #array with holes)
+-- ═══════════════════════════════════════════════════════════════════
 function notifications:refresh_notifs() 
     local offset = 50
-    for i, v in notifications.notifs do
-        local Position = vec2(20, offset)
-        library:tween(v, {Position = dim_offset(Position.X, Position.Y)}, Enum.EasingStyle.Quad, 0.4)
+    for _, v in next, notifications.notifs do
+        library:tween(v, {Position = dim_offset(20, offset)}, Enum.EasingStyle.Quad, 0.4)
         offset += (v.AbsoluteSize.Y + 10)
     end
     return offset
@@ -3287,13 +3276,12 @@ function notifications:create_notification(options)
         library:create( "UIPadding" , { PaddingRight = dim(0, 8); Parent = items[ "notification" ] });
     end
     
-    local index = #notifications.notifs + 1
-    notifications.notifs[index] = items[ "notification" ]
+    -- Use insert/remove — never index with #array + holes
+    insert(notifications.notifs, items[ "notification" ])
 
     notifications:fade(items[ "notification" ], false)
     
     local offset = notifications:refresh_notifs()
-
     items[ "notification" ].Position = dim_offset(20, offset)
 
     library:tween(items[ "notification" ], {AnchorPoint = vec2(0, 0)}, Enum.EasingStyle.Quad, 1)
@@ -3301,11 +3289,14 @@ function notifications:create_notification(options)
 
     task.spawn(function()
         task.wait(cfg.lifetime)
-        notifications.notifs[index] = nil
+        local pos = find(notifications.notifs, items[ "notification" ])
+        if pos then remove(notifications.notifs, pos) end
         notifications:fade(items[ "notification" ], true)
         library:tween(items[ "notification" ], {AnchorPoint = vec2(1, 0)}, Enum.EasingStyle.Quad, 1)
         task.wait(1)
-        items[ "notification" ]:Destroy() 
+        if items[ "notification" ] and items[ "notification" ].Parent then
+            items[ "notification" ]:Destroy() 
+        end
     end)
 end
 
