@@ -1,15 +1,35 @@
-local uis = game:GetService("UserInputService")
-local players = game:GetService("Players")
+--[[
+    Milenium Library (FULL RESTORED)
+    -> Made by @finobe
+    -> Fully fixed for Mobile, Scrolling Tabs, and Anti-Freeze
+]]
+
+local uis = game:GetService("UserInputService") 
+local players = game:GetService("Players") 
 local ws = game:GetService("Workspace")
+local rs = game:GetService("ReplicatedStorage")
 local http_service = game:GetService("HttpService")
+local gui_service = game:GetService("GuiService")
+local lighting = game:GetService("Lighting")
+local run = game:GetService("RunService")
+local stats = game:GetService("Stats")
+local coregui = game:GetService("CoreGui")
+local debris = game:GetService("Debris")
 local tween_service = game:GetService("TweenService")
+local sound_service = game:GetService("SoundService")
 
 local vec2 = Vector2.new
+local vec3 = Vector3.new
 local dim2 = UDim2.new
-local dim  = UDim.new
+local dim  = UDim.new 
 local rect = Rect.new
+local cfr  = CFrame.new
+local empty_cfr = cfr()
+local point_object_space = empty_cfr.PointToObjectSpace
+local angle = CFrame.Angles
 local dim_offset = UDim2.fromOffset
 
+local color = Color3.new
 local rgb = Color3.fromRGB
 local hex = Color3.fromHex
 local hsv = Color3.fromHSV
@@ -18,36 +38,61 @@ local rgbkey = ColorSequenceKeypoint.new
 local numseq = NumberSequence.new
 local numkey = NumberSequenceKeypoint.new
 
-local lp = players.LocalPlayer
-local mouse = lp:GetMouse()
+local camera = ws.CurrentCamera
+local lp = players.LocalPlayer 
+local mouse = lp:GetMouse() 
+local gui_offset = gui_service:GetGuiInset().Y
 
-local floor = math.floor
-local min = math.min
-local clamp = math.clamp
+local max = math.max 
+local floor = math.floor 
+local min = math.min 
+local abs = math.abs 
+local noise = math.noise
+local rad = math.rad 
+local random = math.random 
+local pow = math.pow 
+local sin = math.sin 
+local pi = math.pi 
+local tan = math.tan 
+local atan2 = math.atan2 
+local clamp = math.clamp 
 
-local insert = table.insert
-local find = table.find
+local insert = table.insert 
+local find = table.find 
 local remove = table.remove
 local concat = table.concat
 
 local IS_MOBILE = uis.TouchEnabled and not uis.KeyboardEnabled
 local PLATFORM  = IS_MOBILE and "MOBILE" or "PC"
 
-local function safe_callback(fn, ...)
-    local ok, err = pcall(fn, ...)
-    if not ok then
-        warn("[Milenium UI] Callback Error: " .. tostring(err))
-    end
+local function safe_pcall(fn, ...)
+    local ok, a, b, c = pcall(fn, ...)
+    if ok then return a, b, c end
+    return nil
 end
 
-local function safe_writefile(p, d) return pcall(writefile, p, d) end
-local function safe_listfiles(p) local ok, res = pcall(listfiles, p); return ok and res or {} end
-local function safe_readfile(p) local ok, res = pcall(readfile, p); return ok and res or nil end
-local function safe_delfile(p) pcall(delfile, p) end
-local function safe_isfile(p) local ok, res = pcall(isfile, p); return ok and res or false end
+local function safe_isfile(p)        return (safe_pcall(isfile, p) == true) end
+local function safe_delfile(p)       safe_pcall(delfile, p) end
+local function safe_writefile(p, d)  return safe_pcall(writefile, p, d) ~= nil end
+local function safe_makefolder(p)    safe_pcall(makefolder, p) end
+local function safe_listfiles(p)     return safe_pcall(listfiles, p) or {} end
+local function safe_httpget(url)     return safe_pcall(game.HttpGet, game, url) end
+local function safe_getcustom(p)     return safe_pcall(getcustomasset, p) end
 
 local function get_ui_parent()
-    return lp:FindFirstChild("PlayerGui") or lp:WaitForChild("PlayerGui", 10)
+    local hui = rawget(getgenv and getgenv() or {}, "gethui")
+    if type(gethui) == "function" then
+        local ok, result = pcall(gethui)
+        if ok and result then return result end
+    end
+    local ok = pcall(function() return coregui:GetChildren() end)
+    if ok then
+        local test = Instance.new("ScreenGui")
+        local ok2 = pcall(function() test.Parent = coregui end)
+        test:Destroy()
+        if ok2 then return coregui end
+    end
+    return lp:WaitForChild("PlayerGui")
 end
 
 getgenv().library = {
@@ -55,24 +100,24 @@ getgenv().library = {
     folders = { "/fonts", "/configs" },
     flags = {},
     config_flags = {},
-    connections = {},
+    connections = {},   
     notifications = {notifs = {}},
-    current_open,
+    current_open;
+
     is_mobile = IS_MOBILE,
     platform = PLATFORM,
     scale = 1,
     scales = {},
-    _flag_count = 0
 }
 
 local themes = {
     preset = { accent = rgb(155, 150, 219) },
     utility = {
         accent = {
-            BackgroundColor3 = {},
-            TextColor3 = {},
-            ImageColor3 = {},
-            ScrollBarImageColor3 = {},
+            BackgroundColor3 = {}, 	
+            TextColor3 = {}, 
+            ImageColor3 = {}, 
+            ScrollBarImageColor3 = {} 
         },
     },
 }
@@ -81,48 +126,69 @@ local keys = {
     [Enum.KeyCode.LeftShift] = "LS", [Enum.KeyCode.RightShift] = "RS",
     [Enum.KeyCode.LeftControl] = "LC", [Enum.KeyCode.RightControl] = "RC",
     [Enum.KeyCode.Insert] = "INS", [Enum.KeyCode.Backspace] = "BS",
-    [Enum.KeyCode.Return] = "Ent",
-    [Enum.KeyCode.LeftAlt] = "LA", [Enum.KeyCode.RightAlt] = "RA",
-    [Enum.KeyCode.CapsLock] = "CAPS",
-    [Enum.KeyCode.One] = "1", [Enum.KeyCode.Two] = "2", [Enum.KeyCode.Three] = "3",
-    [Enum.KeyCode.Four] = "4", [Enum.KeyCode.Five] = "5", [Enum.KeyCode.Six] = "6",
-    [Enum.KeyCode.Seven] = "7", [Enum.KeyCode.Eight] = "8", [Enum.KeyCode.Nine] = "9",
-    [Enum.KeyCode.Zero] = "0",
-    [Enum.KeyCode.KeypadOne] = "Num1", [Enum.KeyCode.KeypadTwo] = "Num2",
-    [Enum.KeyCode.KeypadThree] = "Num3", [Enum.KeyCode.KeypadFour] = "Num4",
-    [Enum.KeyCode.KeypadFive] = "Num5", [Enum.KeyCode.KeypadSix] = "Num6",
-    [Enum.KeyCode.KeypadSeven] = "Num7", [Enum.KeyCode.KeypadEight] = "Num8",
-    [Enum.KeyCode.KeypadNine] = "Num9", [Enum.KeyCode.KeypadZero] = "Num0",
-    [Enum.KeyCode.Minus] = "-", [Enum.KeyCode.Equals] = "=",
-    [Enum.KeyCode.Tilde] = "~", [Enum.KeyCode.LeftBracket] = "[",
-    [Enum.KeyCode.RightBracket] = "]", [Enum.KeyCode.RightParenthesis] = ")",
-    [Enum.KeyCode.LeftParenthesis] = "(", [Enum.KeyCode.Semicolon] = ",",
-    [Enum.KeyCode.Quote] = "'", [Enum.KeyCode.BackSlash] = "\\",
-    [Enum.KeyCode.Comma] = ",", [Enum.KeyCode.Period] = ".",
-    [Enum.KeyCode.Slash] = "/", [Enum.KeyCode.Asterisk] = "*",
-    [Enum.KeyCode.Plus] = "+", [Enum.KeyCode.Backquote] = "`",
-    [Enum.UserInputType.MouseButton1] = "MB1",
-    [Enum.UserInputType.MouseButton2] = "MB2",
-    [Enum.UserInputType.MouseButton3] = "MB3",
+    [Enum.KeyCode.Return] = "Ent", [Enum.KeyCode.LeftAlt] = "LA", [Enum.KeyCode.RightAlt] = "RA",
+    [Enum.KeyCode.CapsLock] = "CAPS", [Enum.KeyCode.One] = "1", [Enum.KeyCode.Two] = "2",
+    [Enum.KeyCode.Three] = "3", [Enum.KeyCode.Four] = "4", [Enum.KeyCode.Five] = "5",
+    [Enum.KeyCode.Six] = "6", [Enum.KeyCode.Seven] = "7", [Enum.KeyCode.Eight] = "8",
+    [Enum.KeyCode.Nine] = "9", [Enum.KeyCode.Zero] = "0", [Enum.KeyCode.KeypadOne] = "Num1",
+    [Enum.KeyCode.KeypadTwo] = "Num2", [Enum.KeyCode.KeypadThree] = "Num3", [Enum.KeyCode.KeypadFour] = "Num4",
+    [Enum.KeyCode.KeypadFive] = "Num5", [Enum.KeyCode.KeypadSix] = "Num6", [Enum.KeyCode.KeypadSeven] = "Num7",
+    [Enum.KeyCode.KeypadEight] = "Num8", [Enum.KeyCode.KeypadNine] = "Num9", [Enum.KeyCode.KeypadZero] = "Num0",
+    [Enum.KeyCode.Minus] = "-", [Enum.KeyCode.Equals] = "=", [Enum.KeyCode.Tilde] = "~",
+    [Enum.KeyCode.LeftBracket] = "[", [Enum.KeyCode.RightBracket] = "]", [Enum.KeyCode.RightParenthesis] = ")",
+    [Enum.KeyCode.LeftParenthesis] = "(", [Enum.KeyCode.Semicolon] = ",", [Enum.KeyCode.Quote] = "'",
+    [Enum.KeyCode.BackSlash] = "\\", [Enum.KeyCode.Comma] = ",", [Enum.KeyCode.Period] = ".",
+    [Enum.KeyCode.Slash] = "/", [Enum.KeyCode.Asterisk] = "*", [Enum.KeyCode.Plus] = "+",
+    [Enum.KeyCode.Backquote] = "`", [Enum.UserInputType.MouseButton1] = "MB1",
+    [Enum.UserInputType.MouseButton2] = "MB2", [Enum.UserInputType.MouseButton3] = "MB3",
     [Enum.KeyCode.Escape] = "ESC", [Enum.KeyCode.Space] = "SPC",
 }
-
+        
 library.__index = library
 
-task.spawn(function()
-    for _, path in next, library.folders do 
-        pcall(makefolder, library.directory .. path)
-    end
-end)
+for _, path in next, library.folders do 
+    safe_makefolder(library.directory .. path)
+end
 
 local fonts
 do
-    local function make_font(enum)
-        local ok, f = pcall(Font.fromEnum, enum)
-        return ok and f or nil
+    local function try_font(family, weight, fallback)
+        if family then
+            local ok, obj = pcall(Font.new, family, weight or Enum.FontWeight.Regular)
+            if ok and obj then return obj end
+        end
+        local ok2, obj2 = pcall(Font.fromEnum, fallback)
+        if ok2 and obj2 then return obj2 end
+        return Enum.Font.SourceSans
     end
-    local regular = make_font(Enum.Font.SourceSans)
-    fonts = { small = regular, font = make_font(Enum.Font.SourceSansBold) or regular }
+
+    local function register_font(name, weight, style, remote_url)
+        local id = name .. ".ttf"
+        if not safe_isfile(id) then
+            local data = safe_httpget(remote_url)
+            if data then safe_writefile(id, data) end
+        end
+        if not safe_isfile(id) then return nil end
+        if safe_isfile(name .. ".font") then safe_delfile(name .. ".font") end
+        local custom = safe_getcustom(id)
+        if not custom then return nil end
+        local Data = {
+            name = name,
+            faces = {{ name = "Normal", weight = weight, style = style, assetId = custom }},
+        }
+        if not safe_writefile(name .. ".font", http_service:JSONEncode(Data)) then return nil end
+        return safe_getcustom(name .. ".font")
+    end
+
+    local Medium   = register_font("Medium",   200, "Normal",
+        "https://github.com/i77lhm/storage/raw/refs/heads/main/fonts/Inter_28pt-Medium.ttf")
+    local SemiBold = register_font("SemiBold", 200, "Normal",
+        "https://github.com/i77lhm/storage/raw/refs/heads/main/fonts/Inter_28pt-SemiBold.ttf")
+
+    fonts = {
+        small = try_font(Medium,   Enum.FontWeight.Regular, Enum.Font.SourceSans),
+        font  = try_font(SemiBold, Enum.FontWeight.Regular, Enum.Font.SourceSansBold),
+    }
 end
 
 library.cache = Instance.new("ScreenGui")
@@ -137,81 +203,16 @@ local flags = library.flags
 local config_flags = library.config_flags
 local notifications = library.notifications 
 
--- ==========================================
--- SAVE MANAGER MODULE
--- ==========================================
-local SaveManager = {}
-SaveManager.__index = SaveManager
-
-function library:CreateSaveManager()
-    local manager = setmetatable({}, SaveManager)
-    manager.Folder = library.directory .. "/configs/"
-    manager.ActiveConfig = ""
-    manager.AutoloadConfig = ""
-    manager.ListUI = nil
-    return manager
+function library:pick(pc, mobile)
+    if IS_MOBILE then return mobile end
+    return pc
 end
-
-function SaveManager:GetList()
-    local list = {}
-    for _, file in next, safe_listfiles(self.Folder) do
-        local name = file:gsub("\\", "/"):match("([^/]+)%.cfg$")
-        if name then
-            insert(list, name)
-        end
-    end
-    table.sort(list)
-    return list
-end
-
-function SaveManager:Save(name)
-    if not name or name == "" or name == "None" then return false end
-    local path = self.Folder .. name .. ".cfg"
-    local ok = safe_writefile(path, library:get_config())
-    if ok then
-        self.ActiveConfig = name
-        return true
-    end
-    return false
-end
-
-function SaveManager:Load(name)
-    if not name or name == "" or name == "None" then return false end
-    local path = self.Folder .. name .. ".cfg"
-    if not safe_isfile(path) then return false end
-    
-    local data = safe_readfile(path)
-    if data then
-        library:load_config(data)
-        self.ActiveConfig = name
-        return true
-    end
-    return false
-end
-
-function SaveManager:Delete(name)
-    if not name or name == "" or name == "None" then return false end
-    local path = self.Folder .. name .. ".cfg"
-    safe_delfile(path)
-    if self.ActiveConfig == name then self.ActiveConfig = "" end
-    return true
-end
-
-function SaveManager:RefreshList()
-    if self.ListUI and self.ListUI.refresh_options then
-        self.ListUI.refresh_options(self:GetList())
-    end
-end
-
--- ==========================================
--- LIBRARY FUNCTIONS
--- ==========================================
-
-function library:pick(pc, mobile) return IS_MOBILE and mobile or pc end
 
 function library:calc_scale(size)
-    if not IS_MOBILE or not ws.CurrentCamera then return 1 end
-    local vp = ws.CurrentCamera.ViewportSize
+    if not IS_MOBILE then return 1 end
+    local cam = ws.CurrentCamera
+    if not cam then return 1 end
+    local vp = cam.ViewportSize
     return clamp(min((vp.X * 0.95) / size.X.Offset, (vp.Y * 0.90) / size.Y.Offset), 0.5, 1.25)
 end
 
@@ -225,18 +226,20 @@ end
 
 function library:set_scale(value)
     library.scale = value
-    for _, s in next, library.scales do
+    for _, s in library.scales do
         if s and s.Parent then s.Scale = value end
     end
 end
 
 function library:tween(obj, properties, easing_style, time) 
-    if not obj or not obj.Parent then return end
-    tween_service:Create(obj, TweenInfo.new(time or 0.25, easing_style or Enum.EasingStyle.Quint, Enum.EasingDirection.InOut, 0, false, 0), properties):Play()
+    if not obj or not obj.Parent then return nil end
+    local tween = tween_service:Create(obj, TweenInfo.new(time or 0.25, easing_style or Enum.EasingStyle.Quint, Enum.EasingDirection.InOut, 0, false, 0), properties):Play()
+    return tween
 end
 
 function library:resizify(frame)
     local grip = IS_MOBILE and 28 or 10
+
     local Frame = Instance.new("TextButton")
     Frame.Position = dim2(1, -grip, 1, -grip)
     Frame.BorderColor3 = rgb(0, 0, 0)
@@ -266,10 +269,11 @@ function library:resizify(frame)
 
     local last_resize = 0
     library:connection(uis.InputChanged, function(input)
-        if not resizing or not frame.Parent then return end
+        if not resizing then return end
+        if not frame or not frame.Parent then return end
         if input.UserInputType ~= Enum.UserInputType.MouseMovement and input.UserInputType ~= Enum.UserInputType.Touch then return end
 
-        local now = os.clock()
+        local now = tick()
         if now - last_resize < 0.016 then return end
         last_resize = now
 
@@ -277,13 +281,13 @@ function library:resizify(frame)
         if not cam then return end
         local vp = cam.ViewportSize
         local s = library.scale
-
-        frame.Size = dim2(
+        local current_size = dim2(
             start_size.X.Scale,
             clamp(start_size.X.Offset + (input.Position.X - start.X) / s, og_size.X.Offset, vp.X / s),
             start_size.Y.Scale,
             clamp(start_size.Y.Offset + (input.Position.Y - start.Y) / s, og_size.Y.Offset, vp.Y / s)
         )
+        frame.Size = current_size
     end)
 end 
 
@@ -298,7 +302,6 @@ function library:draggify(frame, handle)
             dragging = true
             start = input.Position
             start_pos = frame.Position
-            library:close_element() 
         end
     end)
 
@@ -310,10 +313,11 @@ function library:draggify(frame, handle)
 
     local last_drag = 0
     library:connection(uis.InputChanged, function(input)
-        if not dragging or not frame.Parent then return end
+        if not dragging then return end
+        if not frame or not frame.Parent then return end
         if input.UserInputType ~= Enum.UserInputType.MouseMovement and input.UserInputType ~= Enum.UserInputType.Touch then return end
 
-        local now = os.clock()
+        local now = tick()
         if now - last_drag < 0.016 then return end
         last_drag = now
 
@@ -324,24 +328,42 @@ function library:draggify(frame, handle)
         local w = frame.Size.X.Offset * s
         local h = frame.Size.Y.Offset * s
 
-        frame.Position = dim2(
+        local current_position = dim2(
             0, clamp(start_pos.X.Offset + (input.Position.X - start.X), 0, vp.X - w),
             0, clamp(start_pos.Y.Offset + (input.Position.Y - start.Y), 0, vp.Y - h)
         )
+        frame.Position = current_position
+        library:close_element()
     end)
 end 
 
+local function count_table(tbl)
+    local n = 0
+    for _ in tbl do n = n + 1 end
+    return n
+end
+
 function library:next_flag()
-    library._flag_count = library._flag_count + 1
-    return "flag_" .. library._flag_count
+    return string.format("flagnumber%s", count_table(library.flags) + 1)
 end 
+
+function library:mouse_in_frame(uiobject)
+    if not uiobject or not uiobject.Parent then return false end
+    local y_cond = uiobject.AbsolutePosition.Y <= mouse.Y and mouse.Y <= uiobject.AbsolutePosition.Y + uiobject.AbsoluteSize.Y
+    local x_cond = uiobject.AbsolutePosition.X <= mouse.X and mouse.X <= uiobject.AbsolutePosition.X + uiobject.AbsoluteSize.X
+    return (y_cond and x_cond)
+end
 
 function library:convert(str)
     local values = {}
     for value in string.gmatch(str, "[^,]+") do
         insert(values, tonumber(value))
     end
-    if #values == 4 then return unpack(values) end
+    if #values == 4 then              
+        return unpack(values)
+    else 
+        return
+    end
 end
     
 function library:convert_enum(enum)
@@ -351,20 +373,35 @@ function library:convert_enum(enum)
     end
     local enum_table = Enum
     for i = 2, #enum_parts do
-        enum_table = enum_table[enum_parts[i]]
+        local enum_item = enum_table[enum_parts[i]]
+        enum_table = enum_item
     end
     return enum_table
 end
 
+local config_holder
+function library:update_config_list() 
+    if not config_holder then return end
+    local list = {}
+    for _, file in safe_listfiles(library.directory .. "/configs") do
+        local name = file:gsub("\\", "/")
+        name = name:match("([^/]+)%.cfg$") or name:match("([^/]+)$") or name
+        list[#list + 1] = name
+    end
+    if config_holder.refresh_options then
+        config_holder.refresh_options(list)
+    end
+end 
+
 function library:get_config()
     local Config = {}
-    for k, v in next, flags do
+    for _, v in next, flags do
         if type(v) == "table" and v.key then
-            Config[k] = {active = v.active, mode = v.mode, key = tostring(v.key)}
+            Config[_] = {active = v.active, mode = v.mode, key = tostring(v.key)}
         elseif type(v) == "table" and v["Transparency"] and v["Color"] then
-            Config[k] = {Transparency = v["Transparency"], Color = v["Color"]:ToHex()}
+            Config[_] = {Transparency = v["Transparency"], Color = v["Color"]:ToHex()}
         else
-            Config[k] = v
+            Config[_] = v
         end
     end 
     return http_service:JSONEncode(Config)
@@ -373,13 +410,16 @@ end
 function library:load_config(config_json) 
     local ok, config = pcall(function() return http_service:JSONDecode(config_json) end)
     if not ok or not config then return end
-    for k, v in next, config do 
-        local function_set = library.config_flags[k]
-        if k ~= "config_name_list" and function_set then 
+    for _, v in next, config do 
+        local function_set = library.config_flags[_]
+        if _ == "config_name_list" then continue end
+        if function_set then 
             if type(v) == "table" and v["Transparency"] and v["Color"] then
-                safe_callback(function_set, hex(v["Color"]), v["Transparency"])
+                function_set(hex(v["Color"]), v["Transparency"])
+            elseif type(v) == "table" and v["active"] then 
+                function_set(v)
             else
-                safe_callback(function_set, v)
+                function_set(v)
             end
         end
     end 
@@ -392,24 +432,31 @@ end
 
 function library:apply_theme(instance, theme, property) 
     local theme_tbl = themes.utility[theme]
-    if theme_tbl and theme_tbl[property] then 
-        insert(theme_tbl[property], instance)
-    end 
+    if not theme_tbl then return end
+    local prop_tbl = theme_tbl[property]
+    if not prop_tbl then return end
+    insert(prop_tbl, instance)
 end
 
-function library:update_theme(theme_name, new_color)
-    local theme_utility = themes.utility[theme_name]
-    if theme_utility then 
-        for prop_name, objects in next, theme_utility do 
-            for _, object in next, objects do 
-                if object and object.Parent and object[prop_name] == themes.preset[theme_name] then 
-                    object[prop_name] = new_color 
-                end 
-            end 
-        end 
-    end 
-    themes.preset[theme_name] = new_color 
-end 
+function library:update_theme(theme, color)
+    local theme_tbl = themes.utility[theme]
+    if not theme_tbl then
+        themes.preset[theme] = color
+        return
+    end
+    for _, property in next, theme_tbl do
+        for _, object in next, property do
+            if object and object.Parent then
+                pcall(function()
+                    if object[_] == themes.preset[theme] then
+                        object[_] = color
+                    end
+                end)
+            end
+        end
+    end
+    themes.preset[theme] = color
+end
 
 function library:connection(signal, callback)
     local connection = signal:Connect(callback)
@@ -421,12 +468,12 @@ function library:close_element(new_path)
     local open_element = library.current_open
     if open_element and new_path ~= open_element then
         if open_element.set_visible then
-            open_element.set_visible(false)
+            pcall(open_element.set_visible, false)
         end
-        open_element.open = false
+        open_element.open = false;
     end 
     if new_path ~= open_element then 
-        library.current_open = new_path or nil
+        library.current_open = new_path or nil;
     end
 end 
 
@@ -434,7 +481,13 @@ function library:create(instance, options)
     local ins = Instance.new(instance) 
     for prop, value in next, options do 
         if value ~= nil then
-            pcall(function() ins[prop] = value end)
+            if prop == "Parent" then
+                if typeof(value) == "Instance" then
+                    ins.Parent = value
+                end
+            else
+                pcall(function() ins[prop] = value end)
+            end
         end
     end
     return ins 
@@ -466,6 +519,8 @@ function library:window(properties)
         items = {};
     }
 
+    local sidebar_width = IS_MOBILE and 140 or 196
+
     if IS_MOBILE and not (properties.size or properties.Size) then
         cfg.size = dim2(0, 620, 0, 330)
     end
@@ -480,6 +535,8 @@ function library:window(properties)
         ResetOnSpawn = false; ZIndexBehavior = Enum.ZIndexBehavior.Global; IgnoreGuiInset = true;
     });
     
+    task.wait(0)
+
     library[ "other" ] = library:create( "ScreenGui" , {
         Parent = parent; Name = "\0"; Enabled = false;
         ResetOnSpawn = false; ZIndexBehavior = Enum.ZIndexBehavior.Sibling; IgnoreGuiInset = true;
@@ -489,6 +546,8 @@ function library:window(properties)
         Parent = parent; Name = "\0"; ResetOnSpawn = false;
         IgnoreGuiInset = true; ZIndexBehavior = Enum.ZIndexBehavior.Sibling;
     });
+
+    task.wait(0)
 
     local items = cfg.items; do
         items[ "main" ] = library:create( "Frame" , {
@@ -503,7 +562,7 @@ function library:window(properties)
         
         items[ "side_frame" ] = library:create( "Frame" , {
             Parent = items[ "main" ]; BackgroundTransparency = 1; Name = "\0";
-            BorderColor3 = rgb(0, 0, 0); Size = dim2(0, 196, 1, -25);
+            BorderColor3 = rgb(0, 0, 0); Size = dim2(0, sidebar_width, 1, -25);
             BorderSizePixel = 0; BackgroundColor3 = rgb(14, 14, 16)
         });
         
@@ -512,10 +571,12 @@ function library:window(properties)
             BorderColor3 = rgb(0, 0, 0); Size = dim2(0, 1, 1, 0); BorderSizePixel = 0; BackgroundColor3 = rgb(21, 21, 23)
         });
         
-        items[ "button_holder" ] = library:create( "Frame" , {
+        items[ "button_holder" ] = library:create( "ScrollingFrame" , {
             Parent = items[ "side_frame" ]; Name = "\0"; BackgroundTransparency = 1;
             Position = dim2(0, 0, 0, 60); BorderColor3 = rgb(0, 0, 0);
-            Size = dim2(1, 0, 1, -60); BorderSizePixel = 0; BackgroundColor3 = rgb(255, 255, 255)
+            Size = dim2(1, 0, 1, -60); BorderSizePixel = 0; BackgroundColor3 = rgb(255, 255, 255);
+            ScrollBarThickness = 2; ScrollBarImageColor3 = rgb(44, 44, 46);
+            AutomaticCanvasSize = Enum.AutomaticSize.Y; CanvasSize = dim2(0, 0, 0, 0);
         }); cfg.button_holder = items[ "button_holder" ];
         
         library:create( "UIListLayout" , { Parent = items[ "button_holder" ]; Padding = dim(0, 5); SortOrder = Enum.SortOrder.LayoutOrder });
@@ -525,13 +586,13 @@ function library:window(properties)
             FontFace = fonts.font; BorderColor3 = rgb(0, 0, 0); Parent = items[ "side_frame" ]; Name = "\0";
             Text = string.format('<u>%s</u><font color = "rgb(255, 255, 255)">%s</font>', cfg.name, cfg.suffix);
             BackgroundTransparency = 1; Size = dim2(1, 0, 0, 70); TextColor3 = themes.preset.accent;
-            BorderSizePixel = 0; RichText = true; TextSize = 30; BackgroundColor3 = rgb(255, 255, 255)
+            BorderSizePixel = 0; RichText = true; TextSize = 26; BackgroundColor3 = rgb(255, 255, 255)
         }); library:apply_theme(items[ "title" ], "accent", "TextColor3");
         
         items[ "multi_holder" ] = library:create( "Frame" , {
             Parent = items[ "main" ]; Name = "\0"; BackgroundTransparency = 1;
-            Position = dim2(0, 196, 0, 0); BorderColor3 = rgb(0, 0, 0);
-            Size = dim2(1, -196, 0, 56); BorderSizePixel = 0; BackgroundColor3 = rgb(255, 255, 255)
+            Position = dim2(0, sidebar_width, 0, 0); BorderColor3 = rgb(0, 0, 0);
+            Size = dim2(1, -sidebar_width, 0, 56); BorderSizePixel = 0; BackgroundColor3 = rgb(255, 255, 255)
         }); cfg.multi_holder = items[ "multi_holder" ];
         
         library:create( "Frame" , {
@@ -549,8 +610,8 @@ function library:window(properties)
         
         items[ "global_fade" ] = library:create( "Frame" , {
             Parent = items[ "main" ]; Name = "\0"; BackgroundTransparency = 1;
-            Position = dim2(0, 196, 0, 56); BorderColor3 = rgb(0, 0, 0);
-            Size = dim2(1, -196, 1, -81); BorderSizePixel = 0; BackgroundColor3 = rgb(14, 14, 16); ZIndex = 2;
+            Position = dim2(0, sidebar_width, 0, 56); BorderColor3 = rgb(0, 0, 0);
+            Size = dim2(1, -sidebar_width, 1, -81); BorderSizePixel = 0; BackgroundColor3 = rgb(14, 14, 16); ZIndex = 2;
         });                
 
         library:create( "UICorner" , { Parent = items[ "shadow" ]; CornerRadius = dim(0, 5) });
@@ -604,6 +665,8 @@ function library:window(properties)
         end)
     end 
 
+    task.wait(0)
+
     do
         if IS_MOBILE then
             library:draggify(items[ "main" ], items[ "title" ])
@@ -619,10 +682,12 @@ function library:window(properties)
         end)
 
         task.defer(function()
-            notifications:create_notification({
-                name = "Platform detected",
-                info = PLATFORM .. (IS_MOBILE and " (touch UI)" or " (mouse UI)"),
-            })
+            pcall(function()
+                notifications:create_notification({
+                    name = "Platform detected",
+                    info = PLATFORM .. (IS_MOBILE and " (touch UI)" or " (mouse UI)"),
+                })
+            end)
         end)
     end 
 
@@ -645,11 +710,12 @@ function library:tab(properties)
         pages = {}; current_multi; items = {};
     } 
 
+    local sidebar_width = IS_MOBILE and 140 or 196
     local items = cfg.items; do 
         items[ "tab_holder" ] = library:create( "Frame" , {
             Parent = library.cache; Name = "\0"; Visible = false; BackgroundTransparency = 1;
-            Position = dim2(0, 196, 0, 56); BorderColor3 = rgb(0, 0, 0);
-            Size = dim2(1, -216, 1, -101); BorderSizePixel = 0; BackgroundColor3 = rgb(255, 255, 255)
+            Position = dim2(0, sidebar_width, 0, 56); BorderColor3 = rgb(0, 0, 0);
+            Size = dim2(1, -(sidebar_width + 20), 1, -101); BorderSizePixel = 0; BackgroundColor3 = rgb(255, 255, 255)
         });
         
         items[ "button" ] = library:create( "TextButton" , {
@@ -793,7 +859,7 @@ function library:tab(properties)
             if selected_tab[ 4 ] ~= items[ "tab_holder" ] then 
                 self.items[ "global_fade" ].BackgroundTransparency = 0
                 library:tween(self.items[ "global_fade" ], {BackgroundTransparency = 1}, Enum.EasingStyle.Quad, 0.4)
-                selected_tab[ 4 ].Size = dim2(1, -216, 1, -101)
+                selected_tab[ 4 ].Size = dim2(1, -(sidebar_width + 20), 1, -101)
             end
 
             library:tween(selected_tab[ 1 ], {BackgroundTransparency = 1})
@@ -809,7 +875,7 @@ function library:tab(properties)
         library:tween(items[ "button" ], {BackgroundTransparency = 0})
         library:tween(items[ "icon" ], {ImageColor3 = themes.preset.accent})
         library:tween(items[ "name" ], {TextColor3 = rgb(255, 255, 255)})
-        library:tween(items[ "tab_holder" ], {Size = dim2(1, -196, 1, -81)}, Enum.EasingStyle.Quad, 0.4)
+        library:tween(items[ "tab_holder" ], {Size = dim2(1, -sidebar_width, 1, -81)}, Enum.EasingStyle.Quad, 0.4)
         
         items[ "tab_holder" ].Visible = true 
         items[ "tab_holder" ].Parent = self.items[ "main" ]
@@ -1125,7 +1191,7 @@ function library:toggle(options)
             library:tween(items[ "circle" ], {BackgroundColor3 = bool and rgb(255, 255, 255) or rgb(86, 86, 88), Position = bool and dim2(1, -14, 0, 2) or dim2(0, 2, 0, 2)}, Enum.EasingStyle.Quad)
         end
 
-        safe_callback(cfg.callback, bool)
+        pcall(cfg.callback, bool)
         flags[cfg.flag] = bool
     end 
     
@@ -1241,7 +1307,7 @@ function library:slider(options)
         library:tween(items[ "fill" ], {Size = dim2((cfg.value - cfg.min) / (cfg.max - cfg.min), cfg.value == cfg.min and 0 or -4, 0, 2)}, Enum.EasingStyle.Linear, 0.05)
         items[ "value" ].Text = tostring(cfg.value) .. cfg.suffix
         flags[cfg.flag] = cfg.value
-        safe_callback(cfg.callback, flags[cfg.flag])
+        pcall(cfg.callback, flags[cfg.flag])
     end
 
     items[ "slider" ].MouseButton1Down:Connect(function()
@@ -1404,7 +1470,7 @@ function library:dropdown(options)
 
         items[ "sub_text" ].Text = isTable and concat(selected, ", ") or (selected[1] or "")
         flags[cfg.flag] = isTable and selected or selected[1]
-        safe_callback(cfg.callback, flags[cfg.flag]) 
+        pcall(cfg.callback, flags[cfg.flag]) 
     end
     
     function cfg.refresh_options(list) 
@@ -1513,7 +1579,7 @@ end
 function library:colorpicker(options) 
     local cfg = {
         name = options.name or "Color"; flag = options.flag or library:next_flag();
-        color = options.color or Color3.new(1, 1, 1); alpha = options.alpha and 1 - options.alpha or 0;
+        color = options.color or color(1, 1, 1); alpha = options.alpha and 1 - options.alpha or 0;
         open = false; callback = options.callback or function() end; items = {};
         seperator = options.seperator or options.Seperator or false;
     }
@@ -1700,7 +1766,7 @@ function library:colorpicker(options)
         items[ "input" ].Text = string.format("%s, %s, %s, ", library:round(Color.R * 255), library:round(Color.G * 255), library:round(Color.B * 255))
         items[ "input" ].Text ..= library:round(1 - a, 0.01)
         
-        safe_callback(cfg.callback, Color, a)
+        pcall(cfg.callback, Color, a)
     end
     
     function cfg.update_color(position)
@@ -1804,7 +1870,7 @@ function library:textbox(options)
     function cfg.set(text) 
         flags[cfg.flag] = text
         items[ "input" ].Text = text
-        safe_callback(cfg.callback, text)
+        pcall(cfg.callback, text)
     end 
     
     items[ "input" ]:GetPropertyChangedSignal("Text"):Connect(function()
@@ -1950,7 +2016,7 @@ function library:keybind(options)
             cfg.set_mode(cfg.mode) 
         end 
 
-        safe_callback(cfg.callback, cfg.active)
+        pcall(cfg.callback, cfg.active)
         local text = tostring(cfg.key) ~= "Enums" and (keys[cfg.key] or tostring(cfg.key):gsub("Enum.", "")) or nil
         items[ "key" ].Text = text and (tostring(text):gsub("KeyCode.", ""):gsub("UserInputType.", "")) or "NONE"
         flags[cfg.flag] = { mode = cfg.mode, key = cfg.key, active = cfg.active }
@@ -2042,7 +2108,7 @@ function library:button(options)
     end 
 
     items[ "button" ].MouseButton1Click:Connect(function()
-        safe_callback(cfg.callback)
+        pcall(cfg.callback)
         items[ "name" ].TextColor3 = themes.preset.accent 
         library:tween(items[ "name" ], {TextColor3 = rgb(245, 245, 245)})
     end)
@@ -2148,7 +2214,7 @@ function library:list(properties)
                     library:tween(current, {TextColor3 = rgb(72, 72, 72)})
                 end
                 flags[cfg.flag] = option_data
-                safe_callback(cfg.callback, option_data)
+                pcall(cfg.callback, option_data)
                 library:tween(name, {TextColor3 = rgb(245, 245, 245)})
                 cfg.current_element = name
             end)
@@ -2167,107 +2233,47 @@ function library:list(properties)
     return setmetatable(cfg, library)
 end 
 
--- ==========================================
--- NEW SAVE MANAGER UI
--- ==========================================
 function library:init_config(window) 
-    local SaveManager = library:CreateSaveManager()
-
-    local tab = window:tab({name = "configs", tabs = {"Main"}})
-    local col = tab:column({})
-    local sec = col:section({name = "Config Manager", size = 1, default = true, icon = "rbxassetid://139628202576511"})
-
-    sec:textbox({name = "Name:", flag = "config_name_text", placeholder = "Enter config name..."})
+    window:seperator({name = "settings"})
+    local main = window:tab({name = "settings", tabs = {"Main"}})
     
-    local configList = sec:dropdown({
-        name = "Configs:",
-        items = SaveManager:GetList(),
-        multi = false,
-        default = "None",
-        flag = "config_list_dropdown",
-        callback = function(selected)
-            SaveManager.ActiveConfig = selected
-        end
-    })
-    SaveManager.ListUI = configList
-
-    local btnHolder = sec:column({}) 
-    local btnSec = btnHolder:section({name = "Actions", size = 1, default = true, icon = "rbxassetid://129380150574313"})
+    local column = main:column({})
+    local section = column:section({name = "configs", size = 1, default = true, icon = "rbxassetid://139628202576511"})
+    config_holder = section:list({options = {"Report", "This", "Error", "To", "Finobe"}, callback = function(option) end, flag = "config_name_list"}); library:update_config_list()
     
-    local btnGrid = btnSec:column({})
-    
-    btnGrid:button({
-        name = "Save Config", 
-        callback = function()
-            local name = flags["config_name_text"]
-            if name and name ~= "" then
-                local success = SaveManager:Save(name)
-                SaveManager:RefreshList()
-                notifications:create_notification({
-                    name = success and "Config Saved" or "Error",
-                    info = success and ("Saved: " .. name) or "Failed to save config."
-                })
-            else
-                notifications:create_notification({name = "Error", info = "Please enter a config name."})
-            end
-        end
-    })
-
-    btnGrid:button({
-        name = "Load Config", 
-        callback = function()
-            local name = flags["config_list_dropdown"]
-            if name and name ~= "None" then
-                local success = SaveManager:Load(name)
-                notifications:create_notification({
-                    name = success and "Config Loaded" or "Error",
-                    info = success and ("Loaded: " .. name) or "Failed to load config."
-                })
-            else
-                notifications:create_notification({name = "Error", info = "Please select a config to load."})
-            end
-        end
-    })
-
-    btnGrid:button({
-        name = "Delete Config", 
-        callback = function()
-            local name = flags["config_list_dropdown"]
-            if name and name ~= "None" then
-                SaveManager:Delete(name)
-                SaveManager:RefreshList()
-                notifications:create_notification({name = "Config Deleted", info = "Deleted: " .. name})
-            else
-                notifications:create_notification({name = "Error", info = "Please select a config to delete."})
-            end
-        end
-    })
-
-    btnGrid:toggle({
-        name = "Autoload on Inject",
-        flag = "config_autoload",
-        default = false,
-        callback = function(bool)
-            if bool and flags["config_list_dropdown"] ~= "None" then
-                SaveManager:Load(flags["config_list_dropdown"])
-            end
-        end
-    })
-    
-    -- Auto-load if flag is set
-    if flags["config_autoload"] and flags["config_list_dropdown"] ~= "None" then
-        SaveManager:Load(flags["config_list_dropdown"])
-    end
+    local column2 = main:column({})
+    local section2 = column2:section({name = "Settings", side = "right", size = 1, default = true, icon = "rbxassetid://129380150574313"})
+    section2:textbox({name = "Config name:", flag = "config_name_text"})
+    section2:button({name = "Save", callback = function() 
+        safe_writefile(library.directory .. "/configs/" .. (flags["config_name_text"] or flags["config_name_list"] or "unnamed") .. ".cfg", library:get_config()) 
+        library:update_config_list() 
+        notifications:create_notification({name = "Configs", info = "Saved config to:\n" .. (flags["config_name_list"] or flags["config_name_text"] or "unnamed")}) 
+    end}) 
+    section2:button({name = "Load", callback = function() 
+        local ok, data = pcall(readfile, library.directory .. "/configs/" .. (flags["config_name_list"] or "") .. ".cfg") 
+        if ok and data then 
+            library:load_config(data) 
+            library:update_config_list() 
+            notifications:create_notification({name = "Configs", info = "Loaded config:\n" .. (flags["config_name_list"] or "")}) 
+        end 
+    end})
+    section2:button({name = "Delete", callback = function() 
+        safe_delfile(library.directory .. "/configs/" .. (flags["config_name_list"] or "") .. ".cfg") 
+        library:update_config_list() 
+        notifications:create_notification({name = "Configs", info = "Deleted config:\n" .. (flags["config_name_list"] or "")}) 
+    end})
+    section2:colorpicker({name = "Menu Accent", callback = function(color, alpha) library:update_theme("accent", color) end, color = themes.preset.accent})
+    section2:keybind({name = "Menu Bind", callback = function(bool) window.toggle_menu(bool) end, default = true})
 end
 
 function notifications:refresh_notifs() 
-    local offset = 20
-    for _, v in next, notifications.notifs do
-        if v and v.Parent then
-            library:tween(v, {Position = dim_offset(20, offset)}, Enum.EasingStyle.Quad, 0.4)
-            offset = offset + v.AbsoluteSize.Y + 10
-        end
+    local offset = 50
+    for i, v in next, notifications.notifs do
+        local Position = vec2(20, offset)
+        library:tween(v, {Position = dim_offset(Position.X, Position.Y)}, Enum.EasingStyle.Quad, 0.4)
+        offset += (v.AbsoluteSize.Y + 10)
     end
+    return offset
 end
 
 function notifications:fade(path, is_fading)
