@@ -10,8 +10,8 @@ local library = loadstring(game:HttpGet(
 --  WINDOW
 -- ════════════════════════════════════════
 local win = library:window({
-    name    = "sleepy",      -- accent-colored prefix
-    suffix  = ".gg",         -- white suffix appended after name
+    name    = "syrex",      -- accent-colored prefix
+    suffix  = ".lol",         -- white suffix appended after name
     game_name = "Universal Script — Sample",
 })
 
@@ -481,4 +481,4 @@ end)
 -- Populate config list on load
 library:update_config_list()
 
-print("[sleepy.gg] menu loaded — INSERT to toggle")
+print("[syrex.lol] menu loaded — INSERT to toggle")
