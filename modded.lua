@@ -1,5 +1,5 @@
 --[[
-    Milenium Library (MOBILE OPTIMIZED)
+    Milenium Library (MOBILE OPTIMIZED & FONT FIXED)
     -> Fully fixed for Mobile, Scrolling Tabs, and Anti-Freeze
 ]]
 
@@ -140,10 +140,10 @@ for _, path in next, library.folders do
     pcall(makefolder, library.directory .. path)
 end
 
--- BYPASS FONT DOWNLOAD (Fixes Mobile Freeze)
+-- FIXED: Using Font.fromEnum to prevent FontFace crash
 local fonts = {
-    small = Enum.Font.SourceSans,
-    font  = Enum.Font.SourceSansBold,
+    small = Font.fromEnum(Enum.Font.SourceSans),
+    font  = Font.fromEnum(Enum.Font.SourceSansBold),
 }
 
 library.cache = Instance.new("ScreenGui")
@@ -409,7 +409,6 @@ function library:close_element(new_path)
     end
 end 
 
--- OPTIMIZED CREATE FUNCTION (No pcall loops, much faster on mobile)
 function library:create(instance, options)
     local ins = Instance.new(instance) 
     for prop, value in next, options do 
@@ -508,7 +507,7 @@ function library:window(properties)
             Position = dim2(0, 0, 0, 60); BorderColor3 = rgb(0, 0, 0);
             Size = dim2(1, 0, 1, -60); BorderSizePixel = 0; BackgroundColor3 = rgb(255, 255, 255);
             ScrollBarThickness = 2; ScrollBarImageColor3 = rgb(44, 44, 46);
-            CanvasSize = dim2(0, 0, 20, 0) -- Prevents automatic sizing freeze loop
+            CanvasSize = dim2(0, 0, 20, 0) 
         }); cfg.button_holder = items[ "button_holder" ];
         
         library:create( "UIListLayout" , { Parent = items[ "button_holder" ]; Padding = dim(0, 5); SortOrder = Enum.SortOrder.LayoutOrder });
