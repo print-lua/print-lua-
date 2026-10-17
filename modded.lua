@@ -1,6 +1,5 @@
 --[[
-    Milenium Library (FULL RESTORED)
-    -> Made by @finobe
+    Milenium Library (MOBILE OPTIMIZED)
     -> Fully fixed for Mobile, Scrolling Tabs, and Anti-Freeze
 ]]
 
@@ -24,9 +23,6 @@ local dim2 = UDim2.new
 local dim  = UDim.new 
 local rect = Rect.new
 local cfr  = CFrame.new
-local empty_cfr = cfr()
-local point_object_space = empty_cfr.PointToObjectSpace
-local angle = CFrame.Angles
 local dim_offset = UDim2.fromOffset
 
 local color = Color3.new
@@ -41,7 +37,6 @@ local numkey = NumberSequenceKeypoint.new
 local camera = ws.CurrentCamera
 local lp = players.LocalPlayer 
 local mouse = lp:GetMouse() 
-local gui_offset = gui_service:GetGuiInset().Y
 
 local max = math.max 
 local floor = math.floor 
@@ -73,11 +68,7 @@ end
 
 local function safe_isfile(p)        return (safe_pcall(isfile, p) == true) end
 local function safe_delfile(p)       safe_pcall(delfile, p) end
-local function safe_writefile(p, d)  return safe_pcall(writefile, p, d) ~= nil end
-local function safe_makefolder(p)    safe_pcall(makefolder, p) end
 local function safe_listfiles(p)     return safe_pcall(listfiles, p) or {} end
-local function safe_httpget(url)     return safe_pcall(game.HttpGet, game, url) end
-local function safe_getcustom(p)     return safe_pcall(getcustomasset, p) end
 
 local function get_ui_parent()
     local hui = rawget(getgenv and getgenv() or {}, "gethui")
@@ -97,13 +88,12 @@ end
 
 getgenv().library = {
     directory = "milenium",
-    folders = { "/fonts", "/configs" },
+    folders = { "/configs" },
     flags = {},
     config_flags = {},
     connections = {},   
     notifications = {notifs = {}},
-    current_open;
-
+    current_open,
     is_mobile = IS_MOBILE,
     platform = PLATFORM,
     scale = 1,
@@ -147,49 +137,14 @@ local keys = {
 library.__index = library
 
 for _, path in next, library.folders do 
-    safe_makefolder(library.directory .. path)
+    pcall(makefolder, library.directory .. path)
 end
 
-local fonts
-do
-    local function try_font(family, weight, fallback)
-        if family then
-            local ok, obj = pcall(Font.new, family, weight or Enum.FontWeight.Regular)
-            if ok and obj then return obj end
-        end
-        local ok2, obj2 = pcall(Font.fromEnum, fallback)
-        if ok2 and obj2 then return obj2 end
-        return Enum.Font.SourceSans
-    end
-
-    local function register_font(name, weight, style, remote_url)
-        local id = name .. ".ttf"
-        if not safe_isfile(id) then
-            local data = safe_httpget(remote_url)
-            if data then safe_writefile(id, data) end
-        end
-        if not safe_isfile(id) then return nil end
-        if safe_isfile(name .. ".font") then safe_delfile(name .. ".font") end
-        local custom = safe_getcustom(id)
-        if not custom then return nil end
-        local Data = {
-            name = name,
-            faces = {{ name = "Normal", weight = weight, style = style, assetId = custom }},
-        }
-        if not safe_writefile(name .. ".font", http_service:JSONEncode(Data)) then return nil end
-        return safe_getcustom(name .. ".font")
-    end
-
-    local Medium   = register_font("Medium",   200, "Normal",
-        "https://github.com/i77lhm/storage/raw/refs/heads/main/fonts/Inter_28pt-Medium.ttf")
-    local SemiBold = register_font("SemiBold", 200, "Normal",
-        "https://github.com/i77lhm/storage/raw/refs/heads/main/fonts/Inter_28pt-SemiBold.ttf")
-
-    fonts = {
-        small = try_font(Medium,   Enum.FontWeight.Regular, Enum.Font.SourceSans),
-        font  = try_font(SemiBold, Enum.FontWeight.Regular, Enum.Font.SourceSansBold),
-    }
-end
+-- BYPASS FONT DOWNLOAD (Fixes Mobile Freeze)
+local fonts = {
+    small = Enum.Font.SourceSans,
+    font  = Enum.Font.SourceSansBold,
+}
 
 library.cache = Instance.new("ScreenGui")
 library.cache.Name = "\0"
@@ -242,13 +197,11 @@ function library:resizify(frame)
 
     local Frame = Instance.new("TextButton")
     Frame.Position = dim2(1, -grip, 1, -grip)
-    Frame.BorderColor3 = rgb(0, 0, 0)
     Frame.Size = dim2(0, grip, 0, grip)
     Frame.BorderSizePixel = 0
-    Frame.BackgroundColor3 = rgb(255, 255, 255)
-    Frame.Parent = frame
     Frame.BackgroundTransparency = 1
     Frame.Text = ""
+    Frame.Parent = frame
 
     local resizing, start_size, start = false, nil, nil
     local og_size = frame.Size
@@ -273,7 +226,7 @@ function library:resizify(frame)
         if not frame or not frame.Parent then return end
         if input.UserInputType ~= Enum.UserInputType.MouseMovement and input.UserInputType ~= Enum.UserInputType.Touch then return end
 
-        local now = tick()
+        local now = os.clock()
         if now - last_resize < 0.016 then return end
         last_resize = now
 
@@ -281,13 +234,13 @@ function library:resizify(frame)
         if not cam then return end
         local vp = cam.ViewportSize
         local s = library.scale
-        local current_size = dim2(
+        
+        frame.Size = dim2(
             start_size.X.Scale,
             clamp(start_size.X.Offset + (input.Position.X - start.X) / s, og_size.X.Offset, vp.X / s),
             start_size.Y.Scale,
             clamp(start_size.Y.Offset + (input.Position.Y - start.Y) / s, og_size.Y.Offset, vp.Y / s)
         )
-        frame.Size = current_size
     end)
 end 
 
@@ -317,7 +270,7 @@ function library:draggify(frame, handle)
         if not frame or not frame.Parent then return end
         if input.UserInputType ~= Enum.UserInputType.MouseMovement and input.UserInputType ~= Enum.UserInputType.Touch then return end
 
-        local now = tick()
+        local now = os.clock()
         if now - last_drag < 0.016 then return end
         last_drag = now
 
@@ -328,42 +281,25 @@ function library:draggify(frame, handle)
         local w = frame.Size.X.Offset * s
         local h = frame.Size.Y.Offset * s
 
-        local current_position = dim2(
+        frame.Position = dim2(
             0, clamp(start_pos.X.Offset + (input.Position.X - start.X), 0, vp.X - w),
             0, clamp(start_pos.Y.Offset + (input.Position.Y - start.Y), 0, vp.Y - h)
         )
-        frame.Position = current_position
         library:close_element()
     end)
 end 
 
-local function count_table(tbl)
-    local n = 0
-    for _ in tbl do n = n + 1 end
-    return n
-end
-
 function library:next_flag()
-    return string.format("flagnumber%s", count_table(library.flags) + 1)
+    library._flag_count = (library._flag_count or 0) + 1
+    return "flag_" .. library._flag_count
 end 
-
-function library:mouse_in_frame(uiobject)
-    if not uiobject or not uiobject.Parent then return false end
-    local y_cond = uiobject.AbsolutePosition.Y <= mouse.Y and mouse.Y <= uiobject.AbsolutePosition.Y + uiobject.AbsoluteSize.Y
-    local x_cond = uiobject.AbsolutePosition.X <= mouse.X and mouse.X <= uiobject.AbsolutePosition.X + uiobject.AbsoluteSize.X
-    return (y_cond and x_cond)
-end
 
 function library:convert(str)
     local values = {}
     for value in string.gmatch(str, "[^,]+") do
         insert(values, tonumber(value))
     end
-    if #values == 4 then              
-        return unpack(values)
-    else 
-        return
-    end
+    if #values == 4 then return unpack(values) end
 end
     
 function library:convert_enum(enum)
@@ -373,8 +309,7 @@ function library:convert_enum(enum)
     end
     local enum_table = Enum
     for i = 2, #enum_parts do
-        local enum_item = enum_table[enum_parts[i]]
-        enum_table = enum_item
+        enum_table = enum_table[enum_parts[i]]
     end
     return enum_table
 end
@@ -432,31 +367,28 @@ end
 
 function library:apply_theme(instance, theme, property) 
     local theme_tbl = themes.utility[theme]
-    if not theme_tbl then return end
-    local prop_tbl = theme_tbl[property]
-    if not prop_tbl then return end
-    insert(prop_tbl, instance)
+    if theme_tbl and theme_tbl[property] then 
+        insert(theme_tbl[property], instance)
+    end 
 end
 
-function library:update_theme(theme, color)
-    local theme_tbl = themes.utility[theme]
-    if not theme_tbl then
-        themes.preset[theme] = color
-        return
-    end
-    for _, property in next, theme_tbl do
-        for _, object in next, property do
-            if object and object.Parent then
-                pcall(function()
-                    if object[_] == themes.preset[theme] then
-                        object[_] = color
-                    end
-                end)
-            end
-        end
-    end
-    themes.preset[theme] = color
-end
+function library:update_theme(theme_name, new_color)
+    local theme_utility = themes.utility[theme_name]
+    if theme_utility then 
+        for prop_name, objects in next, theme_utility do 
+            for _, object in next, objects do 
+                if object and object.Parent then
+                    pcall(function()
+                        if object[prop_name] == themes.preset[theme_name] then 
+                            object[prop_name] = new_color 
+                        end
+                    end)
+                end 
+            end 
+        end 
+    end 
+    themes.preset[theme_name] = new_color 
+end 
 
 function library:connection(signal, callback)
     local connection = signal:Connect(callback)
@@ -477,6 +409,7 @@ function library:close_element(new_path)
     end
 end 
 
+-- OPTIMIZED CREATE FUNCTION (No pcall loops, much faster on mobile)
 function library:create(instance, options)
     local ins = Instance.new(instance) 
     for prop, value in next, options do 
@@ -486,7 +419,7 @@ function library:create(instance, options)
                     ins.Parent = value
                 end
             else
-                pcall(function() ins[prop] = value end)
+                ins[prop] = value
             end
         end
     end
@@ -513,14 +446,13 @@ function library:window(properties)
     local cfg = { 
         suffix = properties.suffix or properties.Suffix or "";
         name = properties.name or properties.Name or "";
-        game_name = properties.gameInfo or properties.game_info or properties.GameInfo or "Milenium for Counter-Strike: Global Offensive";
+        game_name = properties.gameInfo or properties.game_info or properties.GameInfo or "Milenium";
         size = properties.size or properties.Size or dim2(0, 700, 0, 565);
         selected_tab;
         items = {};
     }
 
     local sidebar_width = IS_MOBILE and 140 or 196
-
     if IS_MOBILE and not (properties.size or properties.Size) then
         cfg.size = dim2(0, 620, 0, 330)
     end
@@ -576,7 +508,7 @@ function library:window(properties)
             Position = dim2(0, 0, 0, 60); BorderColor3 = rgb(0, 0, 0);
             Size = dim2(1, 0, 1, -60); BorderSizePixel = 0; BackgroundColor3 = rgb(255, 255, 255);
             ScrollBarThickness = 2; ScrollBarImageColor3 = rgb(44, 44, 46);
-            AutomaticCanvasSize = Enum.AutomaticSize.Y; CanvasSize = dim2(0, 0, 0, 0);
+            CanvasSize = dim2(0, 0, 20, 0) -- Prevents automatic sizing freeze loop
         }); cfg.button_holder = items[ "button_holder" ];
         
         library:create( "UIListLayout" , { Parent = items[ "button_holder" ]; Padding = dim(0, 5); SortOrder = Enum.SortOrder.LayoutOrder });
@@ -2245,7 +2177,7 @@ function library:init_config(window)
     local section2 = column2:section({name = "Settings", side = "right", size = 1, default = true, icon = "rbxassetid://129380150574313"})
     section2:textbox({name = "Config name:", flag = "config_name_text"})
     section2:button({name = "Save", callback = function() 
-        safe_writefile(library.directory .. "/configs/" .. (flags["config_name_text"] or flags["config_name_list"] or "unnamed") .. ".cfg", library:get_config()) 
+        pcall(writefile, library.directory .. "/configs/" .. (flags["config_name_text"] or flags["config_name_list"] or "unnamed") .. ".cfg", library:get_config()) 
         library:update_config_list() 
         notifications:create_notification({name = "Configs", info = "Saved config to:\n" .. (flags["config_name_list"] or flags["config_name_text"] or "unnamed")}) 
     end}) 
@@ -2258,7 +2190,7 @@ function library:init_config(window)
         end 
     end})
     section2:button({name = "Delete", callback = function() 
-        safe_delfile(library.directory .. "/configs/" .. (flags["config_name_list"] or "") .. ".cfg") 
+        pcall(delfile, library.directory .. "/configs/" .. (flags["config_name_list"] or "") .. ".cfg") 
         library:update_config_list() 
         notifications:create_notification({name = "Configs", info = "Deleted config:\n" .. (flags["config_name_list"] or "")}) 
     end})
