@@ -19,19 +19,19 @@ local win = library:window({
 --  TABS  (each tab() call returns one page-table per sub-tab string)
 -- ════════════════════════════════════════
 local vis_main, vis_misc, vis_cfg = win:tab({
-    name = "Visuals",
+    name = "Main",
     icon = "http://www.roblox.com/asset/?id=6031068421",
     tabs = { "Main", "Misc.", "Config" },
 })
 
 local combat_main, combat_misc = win:tab({
-    name = "Combat",
+    name = "Visuals",
     icon = "http://www.roblox.com/asset/?id=6031071355",
     tabs = { "Aimbot", "Triggerbot" },
 })
 
 local misc_main = win:tab({
-    name = "Misc",
+    name = "Esp",
     icon = "http://www.roblox.com/asset/?id=6022668898",
     tabs = { "General" },
 })
