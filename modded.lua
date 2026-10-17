@@ -473,8 +473,11 @@ local PLATFORM  = IS_MOBILE and "MOBILE" or "PC"
         end
         if library[ "other" ] then 
             library[ "other" ]:Destroy()
-        end 
-        if library[ "mobile_gui" ] then library[ "mobile_gui" ]:Destroy() end
+        end
+        -- destroy the persistent toggle ui gui
+        if library[ "toggle_ui_gui" ] then
+            library[ "toggle_ui_gui" ]:Destroy()
+        end
         for index, connection in library.connections do 
             connection:Disconnect() 
             connection = nil 
@@ -513,6 +516,14 @@ local PLATFORM  = IS_MOBILE and "MOBILE" or "PC"
             ZIndexBehavior = Enum.ZIndexBehavior.Sibling;
             IgnoreGuiInset = true;
         }); 
+
+        -- persistent ScreenGui for the toggle button — survives library["items"] toggling
+        library[ "toggle_ui_gui" ] = library:create( "ScreenGui" , {
+            Parent = coregui;
+            Name = "\0";
+            IgnoreGuiInset = true;
+            ZIndexBehavior = Enum.ZIndexBehavior.Sibling;
+        });
 
         local items = cfg.items; do
             items[ "main" ] = library:create( "Frame" , {
@@ -692,11 +703,13 @@ local PLATFORM  = IS_MOBILE and "MOBILE" or "PC"
                 BackgroundColor3 = rgb(255, 255, 255)
             }); library:apply_theme(items[ "other_info" ], "accent", "TextColor3");
 
-            -- ════════════════════════════════════════
-            --  TOGGLE UI BUTTON — pill, bottom-right, white text, no outline
-            -- ════════════════════════════════════════
+            -- ════════════════════════════════════
+            --  TOGGLE UI BUTTON
+            --  parented to its own persistent ScreenGui so it stays
+            --  visible even when library["items"].Enabled = false
+            -- ════════════════════════════════════
             items[ "toggle_ui_btn" ] = library:create( "TextButton" , {
-                Parent = library[ "items" ];
+                Parent = library[ "toggle_ui_gui" ];   -- persistent gui, not library["items"]
                 Name = "\0";
                 AnchorPoint = vec2(1, 1);
                 Position = dim2(1, -20, 1, -20);
@@ -741,35 +754,7 @@ local PLATFORM  = IS_MOBILE and "MOBILE" or "PC"
                 end
             end)
 
-            if IS_MOBILE then
-                library[ "mobile_gui" ] = library:create( "ScreenGui" , {
-                    Parent = coregui;
-                    Name = "\0";
-                    IgnoreGuiInset = true;
-                    ZIndexBehavior = Enum.ZIndexBehavior.Sibling;
-                });
-
-                local toggle_btn = library:create( "TextButton" , {
-                    Parent = library[ "mobile_gui" ];
-                    Name = "\0";
-                    Size = dim2(0, 44, 0, 44);
-                    Position = dim2(0.5, -22, 0, 6);
-                    BackgroundColor3 = rgb(14, 14, 16);
-                    BorderSizePixel = 0;
-                    AutoButtonColor = false;
-                    FontFace = fonts.font;
-                    Text = string.sub(cfg.name ~= "" and cfg.name or "M", 1, 1);
-                    TextSize = 24;
-                    TextColor3 = themes.preset.accent;
-                }); library:apply_theme(toggle_btn, "accent", "TextColor3");
-
-                library:create( "UICorner" , { Parent = toggle_btn; CornerRadius = dim(0, 10) });
-                library:create( "UIStroke" , { Color = rgb(23, 23, 29); Parent = toggle_btn; ApplyStrokeMode = Enum.ApplyStrokeMode.Border });
-
-                toggle_btn.MouseButton1Click:Connect(function()
-                    library[ "items" ].Enabled = not library[ "items" ].Enabled
-                end)
-            end
+            -- S / mobile floating button REMOVED entirely
 
             task.defer(function()
                 notifications:create_notification({
@@ -783,7 +768,8 @@ local PLATFORM  = IS_MOBILE and "MOBILE" or "PC"
             library[ "items" ].Enabled = bool
         end
 
-        -- wire toggle ui button now that cfg.toggle_menu exists
+        -- wire the toggle ui button now that cfg.toggle_menu exists
+        -- toggles open↔close every click
         items[ "toggle_ui_btn" ].MouseButton1Click:Connect(function()
             cfg.toggle_menu(not library[ "items" ].Enabled)
         end)
