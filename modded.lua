@@ -61,17 +61,7 @@
     local find = table.find 
     local remove = table.remove
     local concat = table.concat
--- 
 
---[[
-##################################################################
-##################################################################
-######                                                      ######
-######       MOBILE / PC DETECTION  --  NEW CODE            ######
-######                                                      ######
-##################################################################
-##################################################################
-]]
 local IS_MOBILE = uis.TouchEnabled and not uis.KeyboardEnabled
 local PLATFORM  = IS_MOBILE and "MOBILE" or "PC"
 
@@ -88,7 +78,6 @@ local PLATFORM  = IS_MOBILE and "MOBILE" or "PC"
         notifications = {notifs = {}},
         current_open; 
 
-        -- ######## NEW: PLATFORM + SCALE FIELDS ########
         is_mobile = IS_MOBILE,
         platform = PLATFORM,
         scale = 1,
@@ -223,19 +212,9 @@ local PLATFORM  = IS_MOBILE and "MOBILE" or "PC"
             font = Font.new(SemiBold, Enum.FontWeight.Regular, Enum.FontStyle.Normal);
         }
     end
---
 
 -- Library functions 
 
-    --[[
-    ##################################################################
-    ##################################################################
-    ######                                                      ######
-    ######        MOBILE SCALING HELPERS  --  NEW CODE          ######
-    ######                                                      ######
-    ##################################################################
-    ##################################################################
-    ]]
     function library:pick(pc, mobile)
         if IS_MOBILE then return mobile end
         return pc
@@ -267,17 +246,8 @@ local PLATFORM  = IS_MOBILE and "MOBILE" or "PC"
         return tween
     end
 
-    --[[
-    ##################################################################
-    ##################################################################
-    ######                                                      ######
-    ######  TOUCH + SCALE AWARE  resizify / draggify  (REPLACED) ######
-    ######                                                      ######
-    ##################################################################
-    ##################################################################
-    ]]
     function library:resizify(frame)
-        local grip = IS_MOBILE and 28 or 10   -- BIGGER GRIP ON MOBILE
+        local grip = IS_MOBILE and 28 or 10
 
         local Frame = Instance.new("TextButton")
         Frame.Position = dim2(1, -grip, 1, -grip)
@@ -504,7 +474,7 @@ local PLATFORM  = IS_MOBILE and "MOBILE" or "PC"
         if library[ "other" ] then 
             library[ "other" ]:Destroy()
         end 
-        if library[ "mobile_gui" ] then library[ "mobile_gui" ]:Destroy() end   -- ######## NEW ########
+        if library[ "mobile_gui" ] then library[ "mobile_gui" ]:Destroy() end
         for index, connection in library.connections do 
             connection:Disconnect() 
             connection = nil 
@@ -522,15 +492,6 @@ local PLATFORM  = IS_MOBILE and "MOBILE" or "PC"
             items = {};
         }
 
-        --[[
-        ##############################################################
-        ##############################################################
-        ######                                                  ######
-        ######   MOBILE: SMALLER DEFAULT WINDOW + AUTO SCALE    ######
-        ######                                                  ######
-        ##############################################################
-        ##############################################################
-        ]]
         if IS_MOBILE and not (properties.size or properties.Size) then
             cfg.size = dim2(0, 620, 0, 330)
         end
@@ -558,13 +519,13 @@ local PLATFORM  = IS_MOBILE and "MOBILE" or "PC"
                 Parent = library[ "items" ];
                 Size = cfg.size;
                 Name = "\0";
-                Position = dim2(0, (vp_start.X - cfg.size.X.Offset * library.scale) / 2, 0, (vp_start.Y - cfg.size.Y.Offset * library.scale) / 2);   -- ######## NEW: SCALE-AWARE CENTERING ########
+                Position = dim2(0, (vp_start.X - cfg.size.X.Offset * library.scale) / 2, 0, (vp_start.Y - cfg.size.Y.Offset * library.scale) / 2);
                 BorderColor3 = rgb(0, 0, 0);
                 BorderSizePixel = 0;
                 BackgroundColor3 = rgb(14, 14, 16)
             }); 
 
-            library:add_scale(items[ "main" ])   -- ######## NEW: UISCALE ON MAIN WINDOW ########
+            library:add_scale(items[ "main" ])
             
             library:create( "UICorner" , { Parent = items[ "main" ]; CornerRadius = dim(0, 10) });
             library:create( "UIStroke" , { Color = rgb(23, 23, 29); Parent = items[ "main" ]; ApplyStrokeMode = Enum.ApplyStrokeMode.Border });
@@ -699,7 +660,7 @@ local PLATFORM  = IS_MOBILE and "MOBILE" or "PC"
                 Parent = items[ "info" ];
                 TextColor3 = rgb(72, 72, 73);
                 BorderColor3 = rgb(0, 0, 0);
-                Text = cfg.game_name .. "  |  " .. PLATFORM;   -- ######## NEW: SHOWS "PC" OR "MOBILE" ########
+                Text = cfg.game_name .. "  |  " .. PLATFORM;
                 Name = "\0";
                 Size = dim2(1, 0, 0, 0);
                 AnchorPoint = vec2(0, 0.5);
@@ -729,18 +690,43 @@ local PLATFORM  = IS_MOBILE and "MOBILE" or "PC"
                 FontFace = fonts.font;
                 TextSize = 14;
                 BackgroundColor3 = rgb(255, 255, 255)
-            }); library:apply_theme(items[ "other_info" ], "accent", "TextColor3");        
+            }); library:apply_theme(items[ "other_info" ], "accent", "TextColor3");
+
+            -- ════════════════════════════════════════
+            --  TOGGLE UI BUTTON — pill, bottom-right, white text, no outline
+            -- ════════════════════════════════════════
+            items[ "toggle_ui_btn" ] = library:create( "TextButton" , {
+                Parent = library[ "items" ];
+                Name = "\0";
+                AnchorPoint = vec2(1, 1);
+                Position = dim2(1, -20, 1, -20);
+                Size = dim2(0, 160, 0, 52);
+                BackgroundColor3 = rgb(30, 30, 36);
+                BorderSizePixel = 0;
+                AutoButtonColor = false;
+                FontFace = fonts.font;
+                Text = "toggle ui";
+                TextSize = 15;
+                TextColor3 = rgb(255, 255, 255);
+                ZIndex = 50;
+            });
+
+            library:create( "UICorner" , { Parent = items[ "toggle_ui_btn" ]; CornerRadius = dim(0, 999) });
+            library:create( "UIStroke" , {
+                Parent = items[ "toggle_ui_btn" ];
+                Color = rgb(50, 50, 62);
+                Thickness = 1;
+                ApplyStrokeMode = Enum.ApplyStrokeMode.Border;
+            });
+
+            items[ "toggle_ui_btn" ].MouseEnter:Connect(function()
+                library:tween(items[ "toggle_ui_btn" ], { BackgroundColor3 = rgb(50, 50, 64) }, Enum.EasingStyle.Quad, 0.15)
+            end)
+            items[ "toggle_ui_btn" ].MouseLeave:Connect(function()
+                library:tween(items[ "toggle_ui_btn" ], { BackgroundColor3 = rgb(30, 30, 36) }, Enum.EasingStyle.Quad, 0.15)
+            end)
         end 
 
-        --[[
-        ##############################################################
-        ##############################################################
-        ######                                                  ######
-        ######   DRAG BY TITLE ON MOBILE, WHOLE WINDOW ON PC    ######
-        ######                                                  ######
-        ##############################################################
-        ##############################################################
-        ]]
         do
             if IS_MOBILE then
                 library:draggify(items[ "main" ], items[ "title" ])
@@ -755,16 +741,6 @@ local PLATFORM  = IS_MOBILE and "MOBILE" or "PC"
                 end
             end)
 
-            --[[
-            ##########################################################
-            ##########################################################
-            ######                                              ######
-            ######   MOBILE-ONLY FLOATING OPEN/CLOSE BUTTON     ######
-            ######   (NO KEYBOARD = NO MENU BIND KEY)           ######
-            ######                                              ######
-            ##########################################################
-            ##########################################################
-            ]]
             if IS_MOBILE then
                 library[ "mobile_gui" ] = library:create( "ScreenGui" , {
                     Parent = coregui;
@@ -795,7 +771,6 @@ local PLATFORM  = IS_MOBILE and "MOBILE" or "PC"
                 end)
             end
 
-            -- ######## NEW: ON-SCREEN PLATFORM POPUP ########
             task.defer(function()
                 notifications:create_notification({
                     name = "Platform detected",
@@ -806,7 +781,12 @@ local PLATFORM  = IS_MOBILE and "MOBILE" or "PC"
 
         function cfg.toggle_menu(bool) 
             library[ "items" ].Enabled = bool
-        end 
+        end
+
+        -- wire toggle ui button now that cfg.toggle_menu exists
+        items[ "toggle_ui_btn" ].MouseButton1Click:Connect(function()
+            cfg.toggle_menu(not library[ "items" ].Enabled)
+        end)
             
         return setmetatable(cfg, library)
     end 
@@ -1779,13 +1759,8 @@ local PLATFORM  = IS_MOBILE and "MOBILE" or "PC"
             library:tween(items[ "value" ], {TextColor3 = rgb(255, 255, 255)}, Enum.EasingStyle.Quad, 0.2)
         end)
 
-        --[[
-        ##############################################################
-        ######        SLIDER TOUCH SUPPORT  --  NEW CODE        ######
-        ##############################################################
-        ]]
         library:connection(uis.InputChanged, function(input)
-            if cfg.dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then   -- ######## TOUCH ADDED ########
+            if cfg.dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
                 local size_x = (input.Position.X - items[ "slider" ].AbsolutePosition.X) / items[ "slider" ].AbsoluteSize.X
                 local value = ((cfg.max - cfg.min) * size_x) + cfg.min
                 cfg.set(value)
@@ -1793,7 +1768,7 @@ local PLATFORM  = IS_MOBILE and "MOBILE" or "PC"
         end)
 
         library:connection(uis.InputEnded, function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then   -- ######## TOUCH ADDED ########
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                 cfg.dragging = false
                 library:tween(items[ "value" ], {TextColor3 = rgb(72, 72, 73)}, Enum.EasingStyle.Quad, 0.2)
             end
@@ -1974,7 +1949,7 @@ local PLATFORM  = IS_MOBILE and "MOBILE" or "PC"
                 ZIndex = 10;
             });
 
-            library:add_scale(items[ "dropdown_holder" ])   -- ######## NEW: UISCALE ON DROPDOWN POPUP ########
+            library:add_scale(items[ "dropdown_holder" ])
             
             items[ "outline" ] = library:create( "Frame" , {
                 Parent = items[ "dropdown_holder" ];
@@ -2016,7 +1991,7 @@ local PLATFORM  = IS_MOBILE and "MOBILE" or "PC"
         
         function cfg.set_visible(bool)
             local a = bool and cfg.y_size or 0
-            library:tween(items[ "dropdown_holder" ], {Size = dim_offset(items[ "dropdown" ].AbsoluteSize.X / library.scale, a)})   -- ######## DIVIDED BY SCALE ########
+            library:tween(items[ "dropdown_holder" ], {Size = dim_offset(items[ "dropdown" ].AbsoluteSize.X / library.scale, a)})
             items[ "dropdown_holder" ].Position = dim2(0, items[ "dropdown" ].AbsolutePosition.X, 0, items[ "dropdown" ].AbsolutePosition.Y + 80)
             if not (self.sanity and library.current_open == self) then 
                 library:close_element(cfg)
@@ -2054,7 +2029,7 @@ local PLATFORM  = IS_MOBILE and "MOBILE" or "PC"
 
             for _, option in list do 
                 local button = cfg.render_option(option)
-                cfg.y_size += button.AbsoluteSize.Y / library.scale + 6   -- ######## DIVIDED BY SCALE ########
+                cfg.y_size += button.AbsoluteSize.Y / library.scale + 6
                 insert(cfg.option_instances, button)
                 
                 button.MouseButton1Down:Connect(function()
@@ -2268,7 +2243,7 @@ local PLATFORM  = IS_MOBILE and "MOBILE" or "PC"
                 BackgroundColor3 = rgb(25, 25, 29)
             });
 
-            library:add_scale(items[ "colorpicker_holder" ])   -- ######## NEW: UISCALE ON COLORPICKER POPUP ########
+            library:add_scale(items[ "colorpicker_holder" ])
 
             items[ "colorpicker_fade" ] = library:create( "Frame" , {
                 Parent = items[ "colorpicker_holder" ];
@@ -2512,12 +2487,7 @@ local PLATFORM  = IS_MOBILE and "MOBILE" or "PC"
             cfg.callback(Color, a)
         end
         
-        --[[
-        ##############################################################
-        ######   COLORPICKER TOUCH SUPPORT  --  NEW CODE (REPLACED) ######
-        ##############################################################
-        ]]
-        function cfg.update_color(position)   -- ######## NOW TAKES INPUT POSITION (TOUCH SAFE) ########
+        function cfg.update_color(position)
             local offset = vec2(position.X, position.Y)
 
             if dragging_sat then	
@@ -2810,7 +2780,7 @@ local PLATFORM  = IS_MOBILE and "MOBILE" or "PC"
                 BackgroundColor3 = rgb(0, 0, 0)
             });
 
-            library:add_scale(items[ "dropdown" ])   -- ######## NEW: UISCALE ON KEYBIND POPUP ########
+            library:add_scale(items[ "dropdown" ])
             
             items[ "inline" ] = library:create( "Frame" , {
                 Parent = items[ "dropdown" ];
@@ -2847,7 +2817,7 @@ local PLATFORM  = IS_MOBILE and "MOBILE" or "PC"
                 }); cfg.hold_instances[option] = name
                 library:apply_theme(name, "accent", "TextColor3")
                 
-                cfg.y_size += name.AbsoluteSize.Y / library.scale   -- ######## DIVIDED BY SCALE ########
+                cfg.y_size += name.AbsoluteSize.Y / library.scale
 
                 library:create( "UIPadding" , { Parent = name; PaddingTop = dim(0, 1); PaddingRight = dim(0, 5); PaddingLeft = dim(0, 5) });
 
@@ -2915,17 +2885,11 @@ local PLATFORM  = IS_MOBILE and "MOBILE" or "PC"
 
         function cfg.set_visible(bool)
             local size = bool and cfg.y_size or 0
-            library:tween(items[ "dropdown" ], {Size = dim_offset(items[ "keybind_holder" ].AbsoluteSize.X / library.scale, size)})   -- ######## DIVIDED BY SCALE ########
+            library:tween(items[ "dropdown" ], {Size = dim_offset(items[ "keybind_holder" ].AbsoluteSize.X / library.scale, size)})
             items[ "dropdown" ].Position = dim_offset(items[ "keybind_holder" ].AbsolutePosition.X, items[ "keybind_holder" ].AbsolutePosition.Y + items[ "keybind_holder" ].AbsoluteSize.Y + 60)
         end
     
-        --[[
-        ##############################################################
-        ######   KEYBIND: TAP OPENS MODE LIST ON MOBILE (NEW)   ######
-        ##############################################################
-        ]]
         items[ "keybind_holder" ].MouseButton1Down:Connect(function()
-            -- ######## MOBILE: NO KEYBOARD, SO TAP OPENS THE MODE LIST ########
             if IS_MOBILE then
                 cfg.open = not cfg.open
                 cfg.set_visible(cfg.open)
@@ -3057,7 +3021,7 @@ local PLATFORM  = IS_MOBILE and "MOBILE" or "PC"
                 BackgroundColor3 = rgb(25, 25, 29)
             });
 
-            library:add_scale(items[ "outline" ])   -- ######## NEW: UISCALE ON SETTINGS POPUP ########
+            library:add_scale(items[ "outline" ])
             
             items[ "inline" ] = library:create( "Frame" , {
                 Parent = items[ "outline" ];
@@ -3274,7 +3238,7 @@ local PLATFORM  = IS_MOBILE and "MOBILE" or "PC"
                 BackgroundColor3 = rgb(14, 14, 16)
             });
 
-            library:add_scale(items[ "notification" ])   -- ######## NEW: UISCALE ON NOTIFICATIONS ########
+            library:add_scale(items[ "notification" ])
             
             library:create( "UIStroke" , { Color = rgb(23, 23, 29); Parent = items[ "notification" ]; Transparency = 1; ApplyStrokeMode = Enum.ApplyStrokeMode.Border });
             
