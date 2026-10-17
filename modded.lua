@@ -2,7 +2,6 @@ local uis = game:GetService("UserInputService")
 local players = game:GetService("Players")
 local ws = game:GetService("Workspace")
 local http_service = game:GetService("HttpService")
-local gui_service = game:GetService("GuiService")
 local tween_service = game:GetService("TweenService")
 
 local vec2 = Vector2.new
@@ -34,9 +33,18 @@ local concat = table.concat
 local IS_MOBILE = uis.TouchEnabled and not uis.KeyboardEnabled
 local PLATFORM  = IS_MOBILE and "MOBILE" or "PC"
 
+local function safe_callback(fn, ...)
+    local ok, err = pcall(fn, ...)
+    if not ok then
+        warn("[Milenium UI] Callback Error: " .. tostring(err))
+    end
+end
+
 local function safe_writefile(p, d) return pcall(writefile, p, d) end
 local function safe_listfiles(p) local ok, res = pcall(listfiles, p); return ok and res or {} end
+local function safe_readfile(p) local ok, res = pcall(readfile, p); return ok and res or nil end
 local function safe_delfile(p) pcall(delfile, p) end
+local function safe_isfile(p) local ok, res = pcall(isfile, p); return ok and res or false end
 
 local function get_ui_parent()
     return lp:FindFirstChild("PlayerGui") or lp:WaitForChild("PlayerGui", 10)
@@ -128,6 +136,76 @@ library.cache.Parent = get_ui_parent()
 local flags = library.flags 
 local config_flags = library.config_flags
 local notifications = library.notifications 
+
+-- ==========================================
+-- SAVE MANAGER MODULE
+-- ==========================================
+local SaveManager = {}
+SaveManager.__index = SaveManager
+
+function library:CreateSaveManager()
+    local manager = setmetatable({}, SaveManager)
+    manager.Folder = library.directory .. "/configs/"
+    manager.ActiveConfig = ""
+    manager.AutoloadConfig = ""
+    manager.ListUI = nil
+    return manager
+end
+
+function SaveManager:GetList()
+    local list = {}
+    for _, file in next, safe_listfiles(self.Folder) do
+        local name = file:gsub("\\", "/"):match("([^/]+)%.cfg$")
+        if name then
+            insert(list, name)
+        end
+    end
+    table.sort(list)
+    return list
+end
+
+function SaveManager:Save(name)
+    if not name or name == "" or name == "None" then return false end
+    local path = self.Folder .. name .. ".cfg"
+    local ok = safe_writefile(path, library:get_config())
+    if ok then
+        self.ActiveConfig = name
+        return true
+    end
+    return false
+end
+
+function SaveManager:Load(name)
+    if not name or name == "" or name == "None" then return false end
+    local path = self.Folder .. name .. ".cfg"
+    if not safe_isfile(path) then return false end
+    
+    local data = safe_readfile(path)
+    if data then
+        library:load_config(data)
+        self.ActiveConfig = name
+        return true
+    end
+    return false
+end
+
+function SaveManager:Delete(name)
+    if not name or name == "" or name == "None" then return false end
+    local path = self.Folder .. name .. ".cfg"
+    safe_delfile(path)
+    if self.ActiveConfig == name then self.ActiveConfig = "" end
+    return true
+end
+
+function SaveManager:RefreshList()
+    if self.ListUI and self.ListUI.refresh_options then
+        self.ListUI.refresh_options(self:GetList())
+    end
+end
+
+-- ==========================================
+-- LIBRARY FUNCTIONS
+-- ==========================================
 
 function library:pick(pc, mobile) return IS_MOBILE and mobile or pc end
 
@@ -258,12 +336,6 @@ function library:next_flag()
     return "flag_" .. library._flag_count
 end 
 
-function library:mouse_in_frame(uiobject)
-    if not uiobject or not uiobject.Parent then return false end
-    return (uiobject.AbsolutePosition.Y <= mouse.Y and mouse.Y <= uiobject.AbsolutePosition.Y + uiobject.AbsoluteSize.Y) and
-           (uiobject.AbsolutePosition.X <= mouse.X and mouse.X <= uiobject.AbsolutePosition.X + uiobject.AbsoluteSize.X)
-end
-
 function library:convert(str)
     local values = {}
     for value in string.gmatch(str, "[^,]+") do
@@ -279,32 +351,20 @@ function library:convert_enum(enum)
     end
     local enum_table = Enum
     for i = 2, #enum_parts do
-        local enum_item = enum_table[enum_parts[i]]
-        enum_table = enum_item
+        enum_table = enum_table[enum_parts[i]]
     end
     return enum_table
 end
 
-local config_holder
-function library:update_config_list() 
-    if not config_holder or not config_holder.refresh_options then return end
-    local list = {}
-    for _, file in next, safe_listfiles(library.directory .. "/configs") do
-        local name = file:gsub("\\", "/"):match("([^/]+)%.cfg$") or "unknown"
-        list[#list + 1] = name
-    end
-    config_holder.refresh_options(list)
-end 
-
 function library:get_config()
     local Config = {}
-    for _, v in next, flags do
+    for k, v in next, flags do
         if type(v) == "table" and v.key then
-            Config[_] = {active = v.active, mode = v.mode, key = tostring(v.key)}
+            Config[k] = {active = v.active, mode = v.mode, key = tostring(v.key)}
         elseif type(v) == "table" and v["Transparency"] and v["Color"] then
-            Config[_] = {Transparency = v["Transparency"], Color = v["Color"]:ToHex()}
+            Config[k] = {Transparency = v["Transparency"], Color = v["Color"]:ToHex()}
         else
-            Config[_] = v
+            Config[k] = v
         end
     end 
     return http_service:JSONEncode(Config)
@@ -313,13 +373,13 @@ end
 function library:load_config(config_json) 
     local ok, config = pcall(function() return http_service:JSONDecode(config_json) end)
     if not ok or not config then return end
-    for _, v in next, config do 
-        local function_set = library.config_flags[_]
-        if _ ~= "config_name_list" and function_set then 
+    for k, v in next, config do 
+        local function_set = library.config_flags[k]
+        if k ~= "config_name_list" and function_set then 
             if type(v) == "table" and v["Transparency"] and v["Color"] then
-                function_set(hex(v["Color"]), v["Transparency"])
+                safe_callback(function_set, hex(v["Color"]), v["Transparency"])
             else
-                function_set(v)
+                safe_callback(function_set, v)
             end
         end
     end 
@@ -559,12 +619,10 @@ function library:window(properties)
         end)
 
         task.defer(function()
-            pcall(function()
-                notifications:create_notification({
-                    name = "Platform detected",
-                    info = PLATFORM .. (IS_MOBILE and " (touch UI)" or " (mouse UI)"),
-                })
-            end)
+            notifications:create_notification({
+                name = "Platform detected",
+                info = PLATFORM .. (IS_MOBILE and " (touch UI)" or " (mouse UI)"),
+            })
         end)
     end 
 
@@ -1067,7 +1125,7 @@ function library:toggle(options)
             library:tween(items[ "circle" ], {BackgroundColor3 = bool and rgb(255, 255, 255) or rgb(86, 86, 88), Position = bool and dim2(1, -14, 0, 2) or dim2(0, 2, 0, 2)}, Enum.EasingStyle.Quad)
         end
 
-        cfg.callback(bool)
+        safe_callback(cfg.callback, bool)
         flags[cfg.flag] = bool
     end 
     
@@ -1183,7 +1241,7 @@ function library:slider(options)
         library:tween(items[ "fill" ], {Size = dim2((cfg.value - cfg.min) / (cfg.max - cfg.min), cfg.value == cfg.min and 0 or -4, 0, 2)}, Enum.EasingStyle.Linear, 0.05)
         items[ "value" ].Text = tostring(cfg.value) .. cfg.suffix
         flags[cfg.flag] = cfg.value
-        cfg.callback(flags[cfg.flag])
+        safe_callback(cfg.callback, flags[cfg.flag])
     end
 
     items[ "slider" ].MouseButton1Down:Connect(function()
@@ -1346,7 +1404,7 @@ function library:dropdown(options)
 
         items[ "sub_text" ].Text = isTable and concat(selected, ", ") or (selected[1] or "")
         flags[cfg.flag] = isTable and selected or selected[1]
-        cfg.callback(flags[cfg.flag]) 
+        safe_callback(cfg.callback, flags[cfg.flag]) 
     end
     
     function cfg.refresh_options(list) 
@@ -1455,7 +1513,7 @@ end
 function library:colorpicker(options) 
     local cfg = {
         name = options.name or "Color"; flag = options.flag or library:next_flag();
-        color = options.color or color(1, 1, 1); alpha = options.alpha and 1 - options.alpha or 0;
+        color = options.color or Color3.new(1, 1, 1); alpha = options.alpha and 1 - options.alpha or 0;
         open = false; callback = options.callback or function() end; items = {};
         seperator = options.seperator or options.Seperator or false;
     }
@@ -1642,7 +1700,7 @@ function library:colorpicker(options)
         items[ "input" ].Text = string.format("%s, %s, %s, ", library:round(Color.R * 255), library:round(Color.G * 255), library:round(Color.B * 255))
         items[ "input" ].Text ..= library:round(1 - a, 0.01)
         
-        cfg.callback(Color, a)
+        safe_callback(cfg.callback, Color, a)
     end
     
     function cfg.update_color(position)
@@ -1746,7 +1804,7 @@ function library:textbox(options)
     function cfg.set(text) 
         flags[cfg.flag] = text
         items[ "input" ].Text = text
-        cfg.callback(text)
+        safe_callback(cfg.callback, text)
     end 
     
     items[ "input" ]:GetPropertyChangedSignal("Text"):Connect(function()
@@ -1892,7 +1950,7 @@ function library:keybind(options)
             cfg.set_mode(cfg.mode) 
         end 
 
-        cfg.callback(cfg.active)
+        safe_callback(cfg.callback, cfg.active)
         local text = tostring(cfg.key) ~= "Enums" and (keys[cfg.key] or tostring(cfg.key):gsub("Enum.", "")) or nil
         items[ "key" ].Text = text and (tostring(text):gsub("KeyCode.", ""):gsub("UserInputType.", "")) or "NONE"
         flags[cfg.flag] = { mode = cfg.mode, key = cfg.key, active = cfg.active }
@@ -1984,7 +2042,7 @@ function library:button(options)
     end 
 
     items[ "button" ].MouseButton1Click:Connect(function()
-        cfg.callback()
+        safe_callback(cfg.callback)
         items[ "name" ].TextColor3 = themes.preset.accent 
         library:tween(items[ "name" ], {TextColor3 = rgb(245, 245, 245)})
     end)
@@ -2090,7 +2148,7 @@ function library:list(properties)
                     library:tween(current, {TextColor3 = rgb(72, 72, 72)})
                 end
                 flags[cfg.flag] = option_data
-                cfg.callback(option_data)
+                safe_callback(cfg.callback, option_data)
                 library:tween(name, {TextColor3 = rgb(245, 245, 245)})
                 cfg.current_element = name
             end)
@@ -2109,37 +2167,97 @@ function library:list(properties)
     return setmetatable(cfg, library)
 end 
 
+-- ==========================================
+-- NEW SAVE MANAGER UI
+-- ==========================================
 function library:init_config(window) 
-    window:seperator({name = "settings"})
-    local main = window:tab({name = "settings", tabs = {"Main"}})
+    local SaveManager = library:CreateSaveManager()
+
+    local tab = window:tab({name = "configs", tabs = {"Main"}})
+    local col = tab:column({})
+    local sec = col:section({name = "Config Manager", size = 1, default = true, icon = "rbxassetid://139628202576511"})
+
+    sec:textbox({name = "Name:", flag = "config_name_text", placeholder = "Enter config name..."})
     
-    local column = main:column({})
-    local section = column:section({name = "configs", size = 1, default = true, icon = "rbxassetid://139628202576511"})
-    config_holder = section:list({options = {"Report", "This", "Error", "To", "Finobe"}, callback = function(option) end, flag = "config_name_list"}); library:update_config_list()
+    local configList = sec:dropdown({
+        name = "Configs:",
+        items = SaveManager:GetList(),
+        multi = false,
+        default = "None",
+        flag = "config_list_dropdown",
+        callback = function(selected)
+            SaveManager.ActiveConfig = selected
+        end
+    })
+    SaveManager.ListUI = configList
+
+    local btnHolder = sec:column({}) 
+    local btnSec = btnHolder:section({name = "Actions", size = 1, default = true, icon = "rbxassetid://129380150574313"})
     
-    local column2 = main:column({})
-    local section2 = column2:section({name = "Settings", side = "right", size = 1, default = true, icon = "rbxassetid://129380150574313"})
-    section2:textbox({name = "Config name:", flag = "config_name_text"})
-    section2:button({name = "Save", callback = function() 
-        safe_writefile(library.directory .. "/configs/" .. (flags["config_name_text"] or flags["config_name_list"] or "unnamed") .. ".cfg", library:get_config()) 
-        library:update_config_list() 
-        notifications:create_notification({name = "Configs", info = "Saved config to:\n" .. (flags["config_name_list"] or flags["config_name_text"] or "unnamed")}) 
-    end}) 
-    section2:button({name = "Load", callback = function() 
-        local ok, data = pcall(readfile, library.directory .. "/configs/" .. (flags["config_name_list"] or "") .. ".cfg") 
-        if ok and data then 
-            library:load_config(data) 
-            library:update_config_list() 
-            notifications:create_notification({name = "Configs", info = "Loaded config:\n" .. (flags["config_name_list"] or "")}) 
-        end 
-    end})
-    section2:button({name = "Delete", callback = function() 
-        safe_delfile(library.directory .. "/configs/" .. (flags["config_name_list"] or "") .. ".cfg") 
-        library:update_config_list() 
-        notifications:create_notification({name = "Configs", info = "Deleted config:\n" .. (flags["config_name_list"] or "")}) 
-    end})
-    section2:colorpicker({name = "Menu Accent", callback = function(color, alpha) library:update_theme("accent", color) end, color = themes.preset.accent})
-    section2:keybind({name = "Menu Bind", callback = function(bool) window.toggle_menu(bool) end, default = true})
+    local btnGrid = btnSec:column({})
+    
+    btnGrid:button({
+        name = "Save Config", 
+        callback = function()
+            local name = flags["config_name_text"]
+            if name and name ~= "" then
+                local success = SaveManager:Save(name)
+                SaveManager:RefreshList()
+                notifications:create_notification({
+                    name = success and "Config Saved" or "Error",
+                    info = success and ("Saved: " .. name) or "Failed to save config."
+                })
+            else
+                notifications:create_notification({name = "Error", info = "Please enter a config name."})
+            end
+        end
+    })
+
+    btnGrid:button({
+        name = "Load Config", 
+        callback = function()
+            local name = flags["config_list_dropdown"]
+            if name and name ~= "None" then
+                local success = SaveManager:Load(name)
+                notifications:create_notification({
+                    name = success and "Config Loaded" or "Error",
+                    info = success and ("Loaded: " .. name) or "Failed to load config."
+                })
+            else
+                notifications:create_notification({name = "Error", info = "Please select a config to load."})
+            end
+        end
+    })
+
+    btnGrid:button({
+        name = "Delete Config", 
+        callback = function()
+            local name = flags["config_list_dropdown"]
+            if name and name ~= "None" then
+                SaveManager:Delete(name)
+                SaveManager:RefreshList()
+                notifications:create_notification({name = "Config Deleted", info = "Deleted: " .. name})
+            else
+                notifications:create_notification({name = "Error", info = "Please select a config to delete."})
+            end
+        end
+    })
+
+    btnGrid:toggle({
+        name = "Autoload on Inject",
+        flag = "config_autoload",
+        default = false,
+        callback = function(bool)
+            if bool and flags["config_list_dropdown"] ~= "None" then
+                SaveManager:Load(flags["config_list_dropdown"])
+            end
+        end
+    })
+    
+    -- Auto-load if flag is set
+    if flags["config_autoload"] and flags["config_list_dropdown"] ~= "None" then
+        SaveManager:Load(flags["config_list_dropdown"])
+    end
 end
 
 function notifications:refresh_notifs() 
