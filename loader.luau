@@ -3,7 +3,7 @@
 -- Loadstring fetches library.lua then builds a full demo menu
 
 local library = loadstring(game:HttpGet(
-    "https://raw.githubusercontent.com/sm1q/sleepygg_ui_mod/refs/heads/main/library.lua"
+    "https://raw.githubusercontent.com/print-lua/print-lua-/refs/heads/main/modded.lua"
 ))()
 
 -- ════════════════════════════════════════
