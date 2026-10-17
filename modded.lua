@@ -32,7 +32,8 @@ local rgbkey = ColorSequenceKeypoint.new
 local numseq = NumberSequence.new
 local numkey = NumberSequenceKeypoint.new
 
-local camera = ws.CurrentCamera
+-- PATCH: removed static `local camera = ws.CurrentCamera` — stale after camera swap.
+-- All call sites now go through get_camera() which always fetches fresh.
 local lp = players.LocalPlayer
 local mouse = lp:GetMouse()
 
@@ -77,6 +78,7 @@ local function get_ui_parent()
     return nil
 end
 
+-- PATCH: always fetches ws.CurrentCamera fresh — no stale module-level upvalue.
 local function get_camera()
     local ok, cam = pcall(function() return ws.CurrentCamera end)
     if ok and cam then return cam end
@@ -761,7 +763,12 @@ function library:window(properties)
 
         library:connection(uis.InputChanged, function() end)
 
-        library:connection((get_camera() or ws):GetPropertyChangedSignal("CurrentCamera"), function()
+        -- PATCH: signal is on ws (Workspace), not on the Camera instance.
+        -- Camera does not have a "CurrentCamera" property — Workspace does.
+        -- The old `(get_camera() or ws):GetPropertyChangedSignal("CurrentCamera")`
+        -- crashed on mobile because get_camera() returned a valid Camera object,
+        -- and Camera has no "CurrentCamera" property → "not a valid property name".
+        library:connection(ws:GetPropertyChangedSignal("CurrentCamera"), function()
             if IS_MOBILE then
                 library:set_scale(library:calc_scale(cfg.size))
             end
